@@ -1,8 +1,8 @@
 const { Scenes } = require("telegraf");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const User = require("../model/user");
 
-// Create login scene
 const loginScene = new Scenes.WizardScene(
   "login",
   async (ctx) => {
@@ -27,11 +27,13 @@ const loginScene = new Scenes.WizardScene(
 
       const userId = ctx.from.id;
 
+      let token = null;
       if (response.data && response.data.token) {
         // Store both tokens
+        token = response.data.token;
         sessionManager.setSession(userId, {
-          token: response.data.token,
-          csrfToken: response.data.token,
+          token: token,
+          csrfToken: token,
         });
 
         await ctx.reply(
@@ -54,6 +56,7 @@ const loginScene = new Scenes.WizardScene(
         }
 
         if (foundToken) {
+          token = foundToken;
           sessionManager.setSession(userId, {
             token: foundToken,
             csrfToken: foundToken,
@@ -64,6 +67,65 @@ const loginScene = new Scenes.WizardScene(
         } else {
           await ctx.reply(
             "⚠️ Login succeeded but did not receive proper authentication data."
+          );
+          return ctx.scene.leave();
+        }
+      }
+
+      if (token) {
+        try {
+          ctx.reply("Fetching and saving your academic data...");
+
+          const userResponse = await apiService.makeAuthenticatedRequest(
+            "/user",
+            { token, csrfToken: token }
+          );
+
+          const marksResponse = await apiService.makeAuthenticatedRequest(
+            "/marks",
+            { token, csrfToken: token }
+          );
+
+          const attendanceResponse = await apiService.makeAuthenticatedRequest(
+            "/attendance",
+            { token, csrfToken: token }
+          );
+
+          const userData = userResponse.data || {};
+
+          const regNumber =
+            (userData && userData.regNumber) ||
+            (marksResponse.data && marksResponse.data.regNumber) ||
+            (attendanceResponse.data && attendanceResponse.data.regNumber) ||
+            username;
+
+          await User.findOneAndUpdate(
+            { telegramId: userId },
+            {
+              telegramId: userId,
+              username: username,
+              regNumber: regNumber,
+
+              name: userData.name,
+              email: userData.email,
+              department: userData.department,
+              school: userData.school,
+              program: userData.program,
+              semester: userData.semester,
+              // Store complete objects
+              marks: marksResponse.data,
+              attendance: attendanceResponse.data,
+              userInfo: userData,
+              lastLogin: new Date(),
+            },
+            { upsert: true, new: true }
+          );
+
+          ctx.reply("✅ Your academic data has been saved successfully!");
+        } catch (error) {
+          console.error("Error saving academic data:", error.message);
+          ctx.reply(
+            "⚠️ Login successful, but there was an error saving your academic data."
           );
         }
       }

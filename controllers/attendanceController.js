@@ -18,28 +18,13 @@ async function handleAttendance(ctx) {
     );
 
     const attendanceData = response.data;
-    let message = "📊 *Your Attendance Summary*\n\n";
+    let message = "� *YOUR ATTENDANCE SUMMARY*\n";
 
     if (
       attendanceData &&
       attendanceData.attendance &&
       attendanceData.attendance.length > 0
     ) {
-      if (attendanceData.regNumber) {
-        message += `*Registration Number:* ${attendanceData.regNumber}\n\n`;
-      }
-
-      attendanceData.attendance.forEach((course) => {
-        message += `📘 *${course.courseTitle}* (${course.courseCode})\n`;
-        message += `Category: ${course.category} | Slot: ${course.slot}\n`;
-        message += `Faculty: ${course.facultyName}\n`;
-        message += `Present: ${
-          parseInt(course.hoursConducted) - parseInt(course.hoursAbsent)
-        }/${course.hoursConducted}\n`;
-        message += `Absent: ${course.hoursAbsent}\n`;
-        message += `Attendance: ${course.attendancePercentage}%\n\n`;
-      });
-
       const totalClasses = attendanceData.attendance.reduce(
         (sum, course) => sum + parseInt(course.hoursConducted),
         0
@@ -53,9 +38,46 @@ async function handleAttendance(ctx) {
           ? (((totalClasses - totalAbsent) / totalClasses) * 100).toFixed(2)
           : 0;
 
-      message += `*Overall Attendance: ${overallPercentage}%*`;
+      let overallEmoji = "❌";
+      if (overallPercentage >= 90) overallEmoji = "✅";
+      else if (overallPercentage >= 75) overallEmoji = "✳️";
+      else if (overallPercentage >= 60) overallEmoji = "⚠️";
+
+      message += `\n${overallEmoji} *Overall: ${overallPercentage}%*\n`;
+      message += `📚 *Total Classes: ${totalClasses}*\n`;
+      message += `━━━━━━━━━━━━━\n\n`;
+
+      attendanceData.attendance.forEach((course) => {
+        const hoursConducted = parseInt(course.hoursConducted);
+        const hoursAbsent = parseInt(course.hoursAbsent);
+        const hoursPresent = hoursConducted - hoursAbsent;
+        const attendancePercentage = parseFloat(course.attendancePercentage);
+
+        let courseEmoji = "❌";
+        if (attendancePercentage >= 90) courseEmoji = "✅";
+        else if (attendancePercentage >= 75) courseEmoji = "✳️";
+        else if (attendancePercentage >= 60) courseEmoji = "⚠️";
+
+        message += `📚*${course.courseTitle}*\n`;
+        message += `${courseEmoji} *Attendance: ${attendancePercentage}%*\n`;
+        message += `👉 Present: ${hoursPresent}/${hoursConducted}\n`;
+        message += `👉 Absent: ${hoursAbsent}\n`;
+
+        if (attendancePercentage >= 75) {
+          const maxAbsences = Math.floor(hoursConducted * 0.25);
+          const remainingAbsences = maxAbsences - hoursAbsent;
+          message += `🎯 *Can skip:* ${remainingAbsences} classes\n`;
+        } else {
+          // Calculate how many consecutive classes need to be attended to reach 75%
+          const classesNeeded = Math.ceil(
+            (0.75 * hoursConducted - hoursPresent) / 0.25
+          );
+          message += `📌 *Need to attend:* ${classesNeeded} classes\n`;
+        }
+        message += `\n`;
+      });
     } else {
-      message = "No attendance data available.";
+      message = "❌ *No attendance data available.*";
     }
 
     ctx.replyWithMarkdown(message);
