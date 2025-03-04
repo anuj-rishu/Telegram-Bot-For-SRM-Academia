@@ -1,32 +1,37 @@
-// In-memory storage for user sessions
 const sessions = new Map();
 
 const sessionManager = {
-  /**
-   * Set user session data
-   * @param {number} userId - Telegram user ID
-   * @param {Object} sessionData - Session data to store
-   */
   setSession(userId, sessionData) {
-    sessions.set(userId, sessionData);
+    // Convert userId to string to ensure consistent keys
+    sessions.set(String(userId), sessionData);
+    console.log(`Session set for user ${userId}`);
   },
   
-  /**
-   * Get user session data
-   * @param {number} userId - Telegram user ID
-   * @returns {Object|undefined} Session data or undefined if not found
-   */
   getSession(userId) {
-    return sessions.get(userId);
+    // Convert userId to string when retrieving
+    const session = sessions.get(String(userId));
+    console.log(`Getting session for user ${userId}: ${session ? 'Found' : 'Not found'}`);
+    return session;
   },
   
-  /**
-   * Delete user session
-   * @param {number} userId - Telegram user ID
-   * @returns {boolean} True if session was deleted, false otherwise
-   */
   deleteSession(userId) {
-    return sessions.delete(userId);
+    return sessions.delete(String(userId));
+  },
+
+  getAllSessions() {
+    // Convert Map to plain object
+    const sessionsObj = {};
+    for (const [key, value] of sessions.entries()) {
+      sessionsObj[key] = value;
+    }
+    return sessionsObj;
+  },
+
+  debug() {
+    return {
+      count: sessions.size,
+      users: Array.from(sessions.keys())
+    };
   }
 };
 

@@ -10,7 +10,14 @@ async function handleTimetable(ctx) {
   const session = sessionManager.getSession(userId);
 
   try {
-    ctx.reply("Fetching your timetable...");
+    ctx.reply("📊 Fetching your timetable...");
+
+    
+    const calendarResponse = await apiService.makeAuthenticatedRequest(
+      "/calendar",
+      session
+    );
+    const dayOrder = calendarResponse.data.today.dayOrder;
 
     const response = await apiService.makeAuthenticatedRequest(
       "/timetable",
@@ -18,82 +25,47 @@ async function handleTimetable(ctx) {
     );
     const timetableData = response.data;
 
-    const dayNames = {
-      1: "Monday",
-      2: "Tuesday",
-      3: "Wednesday",
-      4: "Thursday",
-      5: "Friday",
-      6: "Saturday",
-      7: "Sunday",
-    };
-
-    const timeSlots = [
-      "8:00-8:50",
-      "8:50-9:40",
-      "9:50-10:40",
-      "10:40-11:30",
-      "11:40-12:30",
-      "12:30-1:20",
-      "2:00-2:50",
-      "2:50-3:40",
-      "3:50-4:40",
-      "4:40-5:30",
-    ];
-
-    let message = "🗓 *Your Timetable*\n\n";
+    let message = "� *Complete Timetable*\n\n";
 
     if (timetableData.regNumber) {
-      message += `*Registration Number:* ${timetableData.regNumber}\n`;
-      message += `*Batch:* ${timetableData.batch}\n\n`;
+      // message += `👤 *Registration Number:* ${timetableData.regNumber}\n`;
+      // message += `🎓 *Batch:* ${timetableData.batch}\n\n`;
+      // message += `━━━━━━━━━━━━━━━━━━\n\n`;
     }
 
-    if (
-      timetableData &&
-      timetableData.schedule &&
-      timetableData.schedule.length > 0
-    ) {
+    if (timetableData && timetableData.schedule && timetableData.schedule.length > 0) {
       timetableData.schedule.forEach((daySchedule) => {
-        const dayName = dayNames[daySchedule.day] || `Day ${daySchedule.day}`;
-        message += `*${dayName}*:\n`;
+        message += `📌 *Day ${daySchedule.day}*\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n`;
 
         let hasClasses = false;
 
-        daySchedule.table.forEach((slot, index) => {
+        daySchedule.table.forEach((slot) => {
           if (slot) {
             hasClasses = true;
-            message += `- ${timeSlots[index]}: ${slot.name} (${slot.code}) | ${slot.roomNo} | ${slot.courseType}\n`;
+            message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
+            message += `📚 ${slot.name}\n`;
+            message += `🏛 Room: ${slot.roomNo}\n`;
+            message += `📝 Type: ${slot.courseType}\n`;
+            message += `\n`;
           }
         });
 
         if (!hasClasses) {
-          message += `- No classes scheduled\n`;
+          message += `😴 No classes scheduled\n\n`;
         }
-
-        message += "\n";
       });
     } else {
-      message += "No timetable data available.";
+      message += "❌ No timetable data available.";
     }
 
     ctx.replyWithMarkdown(message);
 
-    if (
-      timetableData &&
-      timetableData.schedule &&
-      timetableData.schedule.length > 3
-    ) {
-      const today = new Date().getDay();
-      const mappedToday = today === 0 ? 7 : today;
-
-      const todaySchedule = timetableData.schedule.find(
-        (day) => day.day === mappedToday
-      );
-
-      if (todaySchedule) {
+    if (timetableData && timetableData.schedule && timetableData.schedule.length > 3) {
+      if (dayOrder !== "-") {
         setTimeout(() => {
           ctx.reply(
-            "Would you like to see just today's classes? Use /today command."
+            "🔍 Want to see just today's classes? Use /TodaysClass command!"
           );
         }, 1000);
       }
@@ -101,7 +73,7 @@ async function handleTimetable(ctx) {
   } catch (error) {
     console.error("Timetable error:", error.response?.data || error.message);
     ctx.reply(
-      `Error fetching timetable: ${
+      `❌ Error fetching timetable: ${
         error.response?.data?.error || error.message
       }`
     );
@@ -117,7 +89,18 @@ async function handleTodayTimetable(ctx) {
   const session = sessionManager.getSession(userId);
 
   try {
-    ctx.reply("Fetching today's classes...");
+    // ctx.reply("🔄 Fetching today's classes...");
+
+  
+    const calendarResponse = await apiService.makeAuthenticatedRequest(
+      "/calendar",
+      session
+    );
+    const dayOrder = calendarResponse.data.today.dayOrder;
+
+    if (dayOrder === "-") {
+      return ctx.replyWithMarkdown("📚 *Today's Classes*\n\n🎉 No classes today (Holiday/Weekend)");
+    }
 
     const response = await apiService.makeAuthenticatedRequest(
       "/timetable",
@@ -125,58 +108,37 @@ async function handleTodayTimetable(ctx) {
     );
     const timetableData = response.data;
 
-    const dayNames = {
-      1: "Monday",
-      2: "Tuesday",
-      3: "Wednesday",
-      4: "Thursday",
-      5: "Friday",
-      6: "Saturday",
-      7: "Sunday",
-    };
-
-    const timeSlots = [
-      "8:00-8:50",
-      "8:50-9:40",
-      "9:50-10:40",
-      "10:40-11:30",
-      "11:40-12:30",
-      "12:30-1:20",
-      "2:00-2:50",
-      "2:50-3:40",
-      "3:50-4:40",
-      "4:40-5:30",
-    ];
-
-    const today = new Date().getDay();
-    const mappedToday = today === 0 ? 7 : today;
-
-    const dayName = dayNames[mappedToday];
-    let message = `📚 *Today's Classes (${dayName})*\n\n`;
+    let message = `📚 *Today's Classes*\n`;
+    message += `━━━━━━━━━━━━━━━━━━\n`;
+    message += `📅 Day Order: ${dayOrder}\n\n`;
 
     if (timetableData && timetableData.schedule) {
       const todaySchedule = timetableData.schedule.find(
-        (day) => day.day === mappedToday
+        (day) => day.day === parseInt(dayOrder)
       );
 
       if (todaySchedule) {
         let hasClasses = false;
 
-        todaySchedule.table.forEach((slot, index) => {
+        todaySchedule.table.forEach((slot) => {
           if (slot) {
             hasClasses = true;
-            message += `- ${timeSlots[index]}: ${slot.name} (${slot.code}) | ${slot.roomNo} | ${slot.courseType}\n`;
+            message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
+            message += `📚 ${slot.name}\n`;
+         
+            message += `🏛 Room: ${slot.roomNo}\n`;
+            message += `\n`;
           }
         });
 
         if (!hasClasses) {
-          message += `No classes scheduled for today!\n`;
+          message += `🎉 No classes scheduled for today!\n`;
         }
       } else {
-        message += `No timetable found for today (${dayName}).\n`;
+        message += `❌ No timetable found for today.\n`;
       }
     } else {
-      message += "No timetable data available.";
+      message += "❌ No timetable data available.";
     }
 
     ctx.replyWithMarkdown(message);
@@ -186,7 +148,7 @@ async function handleTodayTimetable(ctx) {
       error.response?.data || error.message
     );
     ctx.reply(
-      `Error fetching today's timetable: ${
+      `❌ Error fetching today's timetable: ${
         error.response?.data?.error || error.message
       }`
     );

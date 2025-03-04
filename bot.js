@@ -15,6 +15,7 @@ const coursesController = require('./controllers/coursesController');
 const userController = require('./controllers/userController');
 const timetableController = require('./controllers/timetableController');
 const calendarController = require('./controllers/calendarController');
+const NotificationService = require('./notification/timetable');
 
 // Initialize bot with token
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
@@ -36,6 +37,7 @@ bot.start((ctx) => {
     '/attendance - Check your attendance\n' +
     '/marks - Check your marks\n' +
     '/timetable - Get your timetable\n' +
+    '/dayorder - Get today\'s classes\n' +
     '/user - Get user information\n' +
     '/courses - List enrolled courses\n' +
     '/calendar - Get academic calendar\n' +
@@ -46,6 +48,7 @@ bot.start((ctx) => {
 
 // Login command
 bot.command('login', (ctx) => ctx.scene.enter('login'));
+new NotificationService(bot);
 
 // Logout command
 bot.command('logout', requireLogin, authController.handleLogout);
@@ -62,10 +65,9 @@ bot.command('courses', requireLogin, coursesController.handleCourses);
 // User info command
 bot.command('user', requireLogin, userController.handleUserInfo);
 
-// Timetable command
+// Timetable commands
 bot.command('timetable', requireLogin, timetableController.handleTimetable);
-bot.command('today', requireLogin, timetableController.handleTodayTimetable);
-
+bot.command('TodaysClass', requireLogin, timetableController. handleTodayTimetable,);
 
 // Calendar command
 bot.command('calendar', requireLogin, calendarController.handleCalendar);
@@ -79,7 +81,8 @@ bot.help((ctx) => {
     '/login - Login to your SRM account\n' +
     '/attendance - Check your attendance\n' +
     '/marks - Check your marks\n' +
-    '/timetable - Get your timetable\n' +
+    '/timetable - Get your weekly timetable\n' +
+    '/dayorder - Check today\'s day order and classes\n' +
     '/user - Get user information\n' +
     '/courses - List enrolled courses\n' +
     '/calendar - Get academic calendar\n' +
