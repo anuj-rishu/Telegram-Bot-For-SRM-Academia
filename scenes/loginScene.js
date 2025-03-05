@@ -105,7 +105,7 @@ const loginScene = new Scenes.WizardScene(
               telegramId: userId,
               username: username,
               regNumber: regNumber,
-
+              token: token,
               name: userData.name,
               email: userData.email,
               department: userData.department,
