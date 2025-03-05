@@ -10,8 +10,6 @@ async function handleMarks(ctx) {
   const session = sessionManager.getSession(userId);
 
   try {
-    ctx.reply("Fetching your marks data...");
-
     const response = await apiService.makeAuthenticatedRequest(
       "/marks",
       session

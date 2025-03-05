@@ -6,22 +6,48 @@ const User = require("../model/user");
 const loginScene = new Scenes.WizardScene(
   "login",
   async (ctx) => {
-    ctx.reply("Please enter your SRM username/registration number:");
+    ctx.wizard.state.startMessage = await ctx.reply(
+      "Please enter your SRM username/email:"
+    );
     return ctx.wizard.next();
   },
   async (ctx) => {
+    ctx.wizard.state.usernameMessage = ctx.message;
     ctx.wizard.state.username = ctx.message.text;
-    ctx.reply("Please enter your password:");
+    ctx.wizard.state.passwordPrompt = await ctx.reply(
+      "Please enter your password:"
+    );
     return ctx.wizard.next();
   },
   async (ctx) => {
-    const { username } = ctx.wizard.state;
+    ctx.wizard.state.passwordMessage = ctx.message;
+    const { username, startMessage, usernameMessage, passwordPrompt } =
+      ctx.wizard.state;
     const password = ctx.message.text;
 
     try {
-      ctx.reply("Logging in, please wait...");
+      const processingMsg = await ctx.reply("Logging in, please wait...");
 
       const response = await apiService.login(username, password);
+
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, startMessage.message_id);
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          usernameMessage.message_id
+        );
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          passwordPrompt.message_id
+        );
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          ctx.wizard.state.passwordMessage.message_id
+        );
+        await ctx.telegram.deleteMessage(ctx.chat.id, processingMsg.message_id);
+      } catch (deleteError) {
+        console.error("Error deleting messages:", deleteError);
+      }
 
       console.log("Login response:", JSON.stringify(response.data, null, 2));
 
@@ -29,7 +55,6 @@ const loginScene = new Scenes.WizardScene(
 
       let token = null;
       if (response.data && response.data.token) {
-        // Store both tokens
         token = response.data.token;
         sessionManager.setSession(userId, {
           token: token,
@@ -61,9 +86,7 @@ const loginScene = new Scenes.WizardScene(
             token: foundToken,
             csrfToken: foundToken,
           });
-          await ctx.reply(
-            "✅ Login successful! Token found in response. You can now use the commands."
-          );
+          await ctx.reply(" 🕔 Please Wait.....");
         } else {
           await ctx.reply(
             "⚠️ Login succeeded but did not receive proper authentication data."
@@ -74,7 +97,9 @@ const loginScene = new Scenes.WizardScene(
 
       if (token) {
         try {
-          ctx.reply("Fetching and saving your academic data...");
+          const fetchingMsg = await ctx.reply(
+            "Fetching and saving your academic data..."
+          );
 
           const userResponse = await apiService.makeAuthenticatedRequest(
             "/user",
@@ -90,6 +115,15 @@ const loginScene = new Scenes.WizardScene(
             "/attendance",
             { token, csrfToken: token }
           );
+
+          try {
+            await ctx.telegram.deleteMessage(
+              ctx.chat.id,
+              fetchingMsg.message_id
+            );
+          } catch (deleteError) {
+            console.error("Error deleting fetching message:", deleteError);
+          }
 
           const userData = userResponse.data || {};
 
@@ -112,7 +146,6 @@ const loginScene = new Scenes.WizardScene(
               school: userData.school,
               program: userData.program,
               semester: userData.semester,
-              // Store complete objects
               marks: marksResponse.data,
               attendance: attendanceResponse.data,
               userInfo: userData,
@@ -121,7 +154,7 @@ const loginScene = new Scenes.WizardScene(
             { upsert: true, new: true }
           );
 
-          ctx.reply("✅ Your academic data has been saved successfully!");
+          ctx.reply("✅ Login successfull!");
         } catch (error) {
           console.error("Error saving academic data:", error.message);
           ctx.reply(
@@ -133,6 +166,28 @@ const loginScene = new Scenes.WizardScene(
       return ctx.scene.leave();
     } catch (error) {
       console.error("Login error:", error.response?.data || error.message);
+
+      try {
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          ctx.wizard.state.startMessage.message_id
+        );
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          ctx.wizard.state.usernameMessage.message_id
+        );
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          ctx.wizard.state.passwordPrompt.message_id
+        );
+        await ctx.telegram.deleteMessage(
+          ctx.chat.id,
+          ctx.wizard.state.passwordMessage.message_id
+        );
+      } catch (deleteError) {
+        console.error("Error deleting messages on login failure:", deleteError);
+      }
+
       await ctx.reply(
         `❌ Login failed: ${error.response?.data?.error || error.message}`
       );
