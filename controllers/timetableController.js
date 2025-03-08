@@ -65,7 +65,7 @@ async function handleTimetable(ctx) {
       if (dayOrder !== "-") {
         setTimeout(() => {
           ctx.reply(
-            "🔍 Want to see just today's classes? Use /TodaysClass command!"
+            "🔍 Want to see just today's classes? Use /todaysclass command!"
           );
         }, 1000);
       }
