@@ -1,7 +1,13 @@
 require('dotenv').config();
-const bot = require('./bot');
+const express = require('express');
+const { Telegraf } = require('telegraf');
 const connectDB = require('./config/db');
 const sessionManager = require('./utils/sessionManager');
+
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
+
+app.use(bot.webhookCallback('/webhook'));
 
 async function startBot() {
   try {
@@ -28,6 +34,4 @@ process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 // Export the bot as a handler for Vercel
-module.exports = (req, res) => {
-  res.status(200).send('Bot is running');
-};
+module.exports = app;
