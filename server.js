@@ -15,7 +15,7 @@ async function startBot() {
     await connectDB();
     
     // Initialize sessions from database
-    await sessionManager.initializeSessions();
+    await sessionManager.initializeSessions()
     
     // Start the bot
     await bot.launch();
