@@ -83,13 +83,13 @@ class NotificationService {
         session
       );
 
-      // Validate calendar response
+      
       if (!calendarResponse?.data?.today) {
         console.log(`⚠️ Invalid calendar data for user ${userId}`);
         return;
       }
 
-      // Skip if no day order or it's a holiday
+  
       const dayOrder = calendarResponse.data.today.dayOrder;
       if (!dayOrder || dayOrder === "-" || dayOrder === "") {
         console.log(

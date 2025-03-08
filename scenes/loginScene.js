@@ -20,6 +20,7 @@ const loginScene = new Scenes.WizardScene(
     return ctx.wizard.next();
   },
   async (ctx) => {
+    // Store password message
     ctx.wizard.state.passwordMessage = ctx.message;
     const { username, startMessage, usernameMessage, passwordPrompt } =
       ctx.wizard.state;
@@ -116,6 +117,7 @@ const loginScene = new Scenes.WizardScene(
             { token, csrfToken: token }
           );
 
+          // Delete fetching message
           try {
             await ctx.telegram.deleteMessage(
               ctx.chat.id,
@@ -167,6 +169,7 @@ const loginScene = new Scenes.WizardScene(
     } catch (error) {
       console.error("Login error:", error.response?.data || error.message);
 
+      // Try to delete credential messages even on error
       try {
         await ctx.telegram.deleteMessage(
           ctx.chat.id,
