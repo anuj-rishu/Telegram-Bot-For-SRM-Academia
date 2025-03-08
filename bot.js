@@ -62,7 +62,7 @@ bot.command("user", requireLogin, userController.handleUserInfo);
 // Timetable commands
 bot.command("timetable", requireLogin, timetableController.handleTimetable);
 bot.command(
-  "TodaysClass",
+  "Todaysclass",
   requireLogin,
   timetableController.handleTodayTimetable
 );
