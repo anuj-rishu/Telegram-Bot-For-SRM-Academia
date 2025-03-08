@@ -80,7 +80,7 @@ bot.help((ctx) => {
       "/attendance - Check your attendance\n" +
       "/marks - Check your marks\n" +
       "/timetable - Get your weekly timetable\n" +
-      "/todaysClass - Get Todays Class\n" +
+      "/todaysclass - Get Todays Class\n" +
       "/dayorder - Check today's day order and classes\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
