@@ -11,7 +11,7 @@ app.use(bodyParser.json());
 async function startBot() {
   try {
     // Connect to MongoDB
-    await connectDB();
+    await connectDB(process.env.MONGODB_URI);
     
     // Initialize sessions from database
     await sessionManager.initializeSessions();
@@ -34,8 +34,14 @@ process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 // Handle incoming webhook requests
 app.post('/webhook', (req, res) => {
-  bot.handleUpdate(req.body);
-  res.status(200).send('OK');
+  try {
+    bot.handleUpdate(req.body);
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('❌ Error handling webhook request:', err);
+    console.error(err.stack); // Log the stack trace for debugging
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 // Export the bot as a handler for Vercel
