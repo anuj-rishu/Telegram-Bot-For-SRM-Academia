@@ -26,3 +26,8 @@ startBot();
 // Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+// Export the bot as a handler for Vercel
+module.exports = (req, res) => {
+  res.status(200).send('Bot is running');
+};
