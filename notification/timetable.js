@@ -28,17 +28,18 @@ class NotificationService {
   }
 
   scheduleNotifications() {
-    schedule.scheduleJob("25 07 * * *", async () => {
+      
+    schedule.scheduleJob("36 07 * * *", async () => {
       try {
         console.log("📅 Starting daily schedule notification...");
         const debugInfo = sessionManager.debug();
         console.log("📊 Session Debug:", debugInfo);
-
+    
         const sessions = sessionManager.getAllSessions();
         const userIds = Object.keys(sessions);
-
+    
         console.log(`👥 Found ${userIds.length} users to notify`);
-
+    
         for (const userId of userIds) {
           console.log(`🔄 Processing user ${userId}...`);
           try {
@@ -56,8 +57,10 @@ class NotificationService {
   }
 
   scheduleClassReminders() {
+    console.log("🔔 Scheduling class reminders...");
     schedule.scheduleJob("* * * * *", async () => {
       try {
+        console.log("🔔 Checking for upcoming classes...");
         const sessions = sessionManager.getAllSessions();
         for (const userId of Object.keys(sessions)) {
           await this.checkUpcomingClasses(userId);
