@@ -18,7 +18,7 @@ async function handleAttendance(ctx) {
     );
 
     const attendanceData = response.data;
-    let message = "� *YOUR ATTENDANCE SUMMARY*\n";
+    let message = "📊 *YOUR ATTENDANCE SUMMARY*\n";
 
     if (
       attendanceData &&
@@ -64,15 +64,16 @@ async function handleAttendance(ctx) {
         message += `👉 Absent: ${hoursAbsent}\n`;
 
         if (attendancePercentage >= 75) {
-          const maxAbsences = Math.floor(hoursConducted * 0.25);
-          const remainingAbsences = maxAbsences - hoursAbsent;
-          message += `🎯 *Can skip:* ${remainingAbsences} classes\n`;
+          const skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);
+          message += `🎯 *Can skip:* ${Math.max(0, skippable)} more classes\n`;
         } else {
-          // Calculate how many consecutive classes need to be attended to reach 75%
           const classesNeeded = Math.ceil(
             (0.75 * hoursConducted - hoursPresent) / 0.25
           );
-          message += `📌 *Need to attend:* ${classesNeeded} classes\n`;
+          message += `📌 *Need to attend:* ${Math.max(
+            1,
+            classesNeeded
+          )} more classes\n`;
         }
         message += `\n`;
       });
