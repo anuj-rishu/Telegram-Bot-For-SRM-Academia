@@ -21,8 +21,9 @@ bot.use(session());
 bot.use(stage.middleware());
 
 // Start command
+// Start command
 bot.start((ctx) => {
-  ctx.reply(
+  ctx.replyWithMarkdown(
     "Welcome to the SRM Academia Bot! 🎓\n\n" +
       "Easily access your SRM academic data with this bot.\n\n" +
       "📌 Features:\n" +
@@ -30,7 +31,10 @@ bot.start((ctx) => {
       "✅ Receive a reminder 2 minutes before your upcoming class.\n" +
       "✅ Get your scheduled classes for the day at 7 AM every morning.\n\n" +
       "Use the commands from ☱ MENU to navigate.\n" +
-      "To get started, type /login."
+      "To get started, type /login.\n\n" +
+      "🧑‍💻 Developed by Anuj Rishu Tiwari\n" +
+      "[GitHub](https://github.com/anuj-rishu)\n" +
+      "[LinkedIn](https://linkedin.com/in/anuj-rishu)"
   );
 });
 
