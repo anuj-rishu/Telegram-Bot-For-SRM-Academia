@@ -29,7 +29,7 @@ class NotificationService {
 
   scheduleNotifications() {
       
-    schedule.scheduleJob("36 07 * * *", async () => {
+    schedule.scheduleJob("01 07 * * *", async () => {
       try {
         console.log("📅 Starting daily schedule notification...");
         const debugInfo = sessionManager.debug();
