@@ -28,7 +28,7 @@ bot.start((ctx) => {
       "Easily access your SRM academic data with this bot.\n\n" +
       "📌 Features:\n" +
       "✅ Get real-time notifications when your marks or attendance are updated.\n" +
-      "✅ Receive a reminder 2 minutes before your upcoming class.\n" +
+      "✅ Receive a reminder 30 min and 5 min before your upcoming class.\n" +
       "✅ Get your scheduled classes for the day at 7 AM every morning.\n\n" +
       "Use the commands from ☱ MENU to navigate.\n" +
       "To get started, type /login.\n\n" +
