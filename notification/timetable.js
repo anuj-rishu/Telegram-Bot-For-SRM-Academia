@@ -6,22 +6,6 @@ const apiService = require("../services/apiService");
 class NotificationService {
   constructor(bot) {
     this.bot = bot;
-    this.morningQuotes = [
-      "Rise and shine! Success awaits those who make an early start. 🌅",
-      "Every morning is a fresh beginning. Make it count! ✨",
-      "Good morning! Today is another chance to be better than yesterday. 🌟",
-      "Wake up with determination, go to bed with satisfaction. 💪",
-      "A new day brings new opportunities. Make it most of it! 🎯",
-      "Your future is created by what you do today, not tomorrow. Good morning! 🌄",
-      "Start your day with a grateful heart and positive mindset. 🙏",
-      "Today's goals: Coffee ☕, Success 🎯, Kindness 💝",
-      "Every day is a new page in your story. Make it a good one! 📖",
-      "Morning motivation: You've got this! 💫",
-      "Begin each day believing something wonderful is about to happen! 🌟",
-      "Your positive action combined with positive thinking results in success. 🎯",
-      "The only way to do great work is to love what you do. 💝",
-      "Make today amazing! Your future self will thank you. ⭐",
-    ];
     this.scheduleNotifications();
     this.scheduleClassReminders();
     console.log("🔔 Notification service initialized");
@@ -178,12 +162,6 @@ class NotificationService {
     }
   }
 
-  getRandomQuote() {
-    return this.morningQuotes[
-      Math.floor(Math.random() * this.morningQuotes.length)
-    ];
-  }
-
   getDayGreeting() {
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning";
@@ -227,7 +205,6 @@ class NotificationService {
 
     const greeting = this.getDayGreeting();
     const date = this.formatDate();
-    const quote = this.getRandomQuote();
 
     const message = [
       `🌟 *${greeting}!*`,
@@ -237,14 +214,6 @@ class NotificationService {
 
     await context.replyWithMarkdown(message);
     await timetableController.handleTodayTimetable(context);
-
-    // const footerMessage = [
-    //     `\n━━━━━━━━━━━━━━━━━━━━`,
-    //     `🎯 *Have a productive day!*`,
-    //     `_Remember: Every small step counts towards your goals._`
-    // ].join('\n');
-
-    // await context.replyWithMarkdown(footerMessage);
   }
 }
 
