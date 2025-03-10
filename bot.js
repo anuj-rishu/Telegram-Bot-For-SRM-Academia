@@ -20,8 +20,7 @@ const stage = new Scenes.Stage([loginScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-// Start command
-// Start command
+
 bot.start((ctx) => {
   ctx.replyWithMarkdown(
     "Welcome to the SRM Academia Bot! 🎓\n\n" +

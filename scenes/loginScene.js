@@ -20,7 +20,6 @@ const loginScene = new Scenes.WizardScene(
     return ctx.wizard.next();
   },
   async (ctx) => {
-    // Store password message
     ctx.wizard.state.passwordMessage = ctx.message;
     const { username, startMessage, usernameMessage, passwordPrompt } =
       ctx.wizard.state;
@@ -52,28 +51,46 @@ const loginScene = new Scenes.WizardScene(
 
       console.log("Login response:", JSON.stringify(response.data, null, 2));
 
+      if (response.data && response.data.error === true) {
+        await ctx.reply(
+          "❌ Login failed: Wrong username or password. Please try again."
+        );
+        return ctx.scene.leave();
+      }
+
+      if (response.data && response.data.message) {
+        const message = response.data.message.toLowerCase();
+        if (
+          message.includes("invalid") ||
+          message.includes("incorrect") ||
+          message.includes("wrong") ||
+          message.includes("authentication") ||
+          message.includes("fail") ||
+          message.includes("error")
+        ) {
+          await ctx.reply(
+            "❌ Login failed: Wrong username or password. Please try again."
+          );
+          return ctx.scene.leave();
+        }
+      }
+
       const userId = ctx.from.id;
 
       let token = null;
       if (response.data && response.data.token) {
         token = response.data.token;
-        sessionManager.setSession(userId, {
-          token: token,
-          csrfToken: token,
-        });
-
-        await ctx.reply(
-          "✅ Login successful! You can now use the commands to fetch your data."
-        );
       } else {
-        console.log("Invalid login response structure:", response.data);
+        console.log("Token not found directly, searching response...");
 
         let foundToken = null;
         if (response.data) {
           for (const key in response.data) {
             if (
               typeof response.data[key] === "string" &&
-              response.data[key].length > 10
+              response.data[key].length >= 20 &&
+              (response.data[key].includes(".") ||
+                response.data[key].includes("-"))
             ) {
               foundToken = response.data[key];
               break;
@@ -83,93 +100,136 @@ const loginScene = new Scenes.WizardScene(
 
         if (foundToken) {
           token = foundToken;
-          sessionManager.setSession(userId, {
-            token: foundToken,
-            csrfToken: foundToken,
-          });
-          await ctx.reply(" 🕔 Please Wait.....");
         } else {
           await ctx.reply(
-            "⚠️ Login succeeded but did not receive proper authentication data."
+            "❌ Login failed: Unable to authenticate. Please try again."
           );
           return ctx.scene.leave();
         }
       }
 
-      if (token) {
+      if (!token) {
+        await ctx.reply(
+          "❌ Login failed: No authentication token received. Please try again."
+        );
+        return ctx.scene.leave();
+      }
+
+      const fetchingMsg = await ctx.reply("Verifying credentials...");
+
+      try {
+        const testResponse = await apiService.makeAuthenticatedRequest(
+          "/user",
+          { token, csrfToken: token }
+        );
+
+        if (!testResponse.data || testResponse.data.error) {
+          await ctx.telegram.deleteMessage(ctx.chat.id, fetchingMsg.message_id);
+          await ctx.reply(
+            "❌ Login failed: Invalid credentials. Please try again."
+          );
+          return ctx.scene.leave();
+        }
+
+        sessionManager.setSession(userId, {
+          token: token,
+          csrfToken: token,
+        });
+
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          fetchingMsg.message_id,
+          undefined,
+          "Fetching and saving your academic data..."
+        );
+
+        const userResponse = await apiService.makeAuthenticatedRequest(
+          "/user",
+          { token, csrfToken: token }
+        );
+
+        const marksResponse = await apiService.makeAuthenticatedRequest(
+          "/marks",
+          { token, csrfToken: token }
+        );
+
+        const attendanceResponse = await apiService.makeAuthenticatedRequest(
+          "/attendance",
+          { token, csrfToken: token }
+        );
+
         try {
-          const fetchingMsg = await ctx.reply(
-            "Fetching and saving your academic data..."
+          await ctx.telegram.deleteMessage(ctx.chat.id, fetchingMsg.message_id);
+        } catch (deleteError) {
+          console.error("Error deleting fetching message:", deleteError);
+        }
+
+        const userData = userResponse.data || {};
+
+        const regNumber =
+          (userData && userData.regNumber) ||
+          (marksResponse.data && marksResponse.data.regNumber) ||
+          (attendanceResponse.data && attendanceResponse.data.regNumber) ||
+          username;
+
+        await User.findOneAndUpdate(
+          { telegramId: userId },
+          {
+            telegramId: userId,
+            username: username,
+            regNumber: regNumber,
+            token: token,
+            name: userData.name,
+            email: userData.email,
+            department: userData.department,
+            school: userData.school,
+            program: userData.program,
+            semester: userData.semester,
+            marks: marksResponse.data,
+            attendance: attendanceResponse.data,
+            userInfo: userData,
+            lastLogin: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+
+        await ctx.reply(
+          "✅ Login successful! You can now use the commands from Menu ≡ to fetch your data."
+        );
+      } catch (error) {
+        console.error(
+          "Error during authentication verification:",
+          error.message
+        );
+
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, fetchingMsg.message_id);
+        } catch (e) {
+          console.error("Error deleting message:", e.message);
+        }
+
+        if (
+          error.response?.status === 401 ||
+          error.response?.status === 403 ||
+          error.message.includes("Invalid token") ||
+          error.message.includes("authentication")
+        ) {
+          await ctx.reply(
+            "❌ Login failed: Invalid credentials. Please try again."
           );
-
-          const userResponse = await apiService.makeAuthenticatedRequest(
-            "/user",
-            { token, csrfToken: token }
-          );
-
-          const marksResponse = await apiService.makeAuthenticatedRequest(
-            "/marks",
-            { token, csrfToken: token }
-          );
-
-          const attendanceResponse = await apiService.makeAuthenticatedRequest(
-            "/attendance",
-            { token, csrfToken: token }
-          );
-
-          // Delete fetching message
-          try {
-            await ctx.telegram.deleteMessage(
-              ctx.chat.id,
-              fetchingMsg.message_id
-            );
-          } catch (deleteError) {
-            console.error("Error deleting fetching message:", deleteError);
-          }
-
-          const userData = userResponse.data || {};
-
-          const regNumber =
-            (userData && userData.regNumber) ||
-            (marksResponse.data && marksResponse.data.regNumber) ||
-            (attendanceResponse.data && attendanceResponse.data.regNumber) ||
-            username;
-
-          await User.findOneAndUpdate(
-            { telegramId: userId },
-            {
-              telegramId: userId,
-              username: username,
-              regNumber: regNumber,
-              token: token,
-              name: userData.name,
-              email: userData.email,
-              department: userData.department,
-              school: userData.school,
-              program: userData.program,
-              semester: userData.semester,
-              marks: marksResponse.data,
-              attendance: attendanceResponse.data,
-              userInfo: userData,
-              lastLogin: new Date(),
-            },
-            { upsert: true, new: true }
-          );
-
-          ctx.reply("✅ Login successfull!");
-        } catch (error) {
-          console.error("Error saving academic data:", error.message);
-          ctx.reply(
-            "⚠️ Login successful, but there was an error saving your academic data."
+        } else {
+          await ctx.reply(
+            "❌ Login failed: Could not verify your credentials. Please try again."
           );
         }
+
+        return ctx.scene.leave();
       }
 
       return ctx.scene.leave();
     } catch (error) {
       console.error("Login error:", error.response?.data || error.message);
 
-      // Try to delete credential messages even on error
       try {
         await ctx.telegram.deleteMessage(
           ctx.chat.id,
@@ -191,9 +251,37 @@ const loginScene = new Scenes.WizardScene(
         console.error("Error deleting messages on login failure:", deleteError);
       }
 
-      await ctx.reply(
-        `❌ Login failed: ${error.response?.data?.error || error.message}`
-      );
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        await ctx.reply(
+          "❌ Login failed: Wrong username or password. Please try again."
+        );
+      } else if (error.response?.data?.error) {
+        const errorMsg =
+          typeof error.response.data.error === "string"
+            ? error.response.data.error.toLowerCase()
+            : "";
+
+        if (
+          errorMsg.includes("invalid") ||
+          errorMsg.includes("incorrect") ||
+          errorMsg.includes("wrong") ||
+          errorMsg.includes("authentication") ||
+          errorMsg.includes("credentials")
+        ) {
+          await ctx.reply(
+            "❌ Login failed: Wrong username or password. Please try again."
+          );
+        } else {
+          await ctx.reply(
+            "❌ Login failed. Please check your credentials and try again."
+          );
+        }
+      } else {
+        await ctx.reply(
+          "❌ Login failed. Please check your credentials and try again."
+        );
+      }
+
       return ctx.scene.leave();
     }
   }
