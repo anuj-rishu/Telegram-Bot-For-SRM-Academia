@@ -6,6 +6,7 @@ class NotificationService {
   constructor(bot) {
     this.bot = bot;
     this.sentNotifications = new Map();
+    this.processingUsers = new Set();
     this.scheduleNotifications();
     this.scheduleClassReminders();
     console.log("🔔 Notification service initialized");
@@ -47,8 +48,21 @@ class NotificationService {
       try {
         console.log("🔔 Checking for upcoming classes...");
         const sessions = sessionManager.getAllSessions();
+
         for (const userId of Object.keys(sessions)) {
-          await this.checkUpcomingClasses(userId);
+          if (this.processingUsers.has(userId)) {
+            console.log(`⏭️ Already processing user ${userId}, skipping`);
+            continue;
+          }
+
+          this.processingUsers.add(userId);
+
+          try {
+            await this.checkUpcomingClasses(userId);
+          } finally {
+            this.processingUsers.delete(userId);
+          }
+
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       } catch (error) {
@@ -60,7 +74,6 @@ class NotificationService {
   async checkUpcomingClasses(userId) {
     const session = sessionManager.getSession(userId);
     if (!session?.token) {
-      console.log(`⚠️ No valid session for user ${userId}`);
       return;
     }
 
@@ -71,13 +84,11 @@ class NotificationService {
       );
 
       if (!response?.data || response.data.error) {
-        console.log(`⚠️ Invalid response for user ${userId}`);
         return;
       }
 
       const upcomingClasses = response.data.upcomingClasses;
       if (!upcomingClasses) {
-        console.log(`⚠️ No upcoming classes data for user ${userId}`);
         return;
       }
 
@@ -101,14 +112,14 @@ class NotificationService {
         error.message
       );
       if (error.response) {
-        console.error("Response data:", error.response.data);
         console.error("Response status:", error.response.status);
       }
     }
   }
 
   createNotificationKey(userId, classInfo, timeframe) {
-    return `${userId}:${classInfo.code}:${classInfo.startTime}:${timeframe}`;
+    const today = new Date().toLocaleDateString();
+    return `${today}:${userId}:${classInfo.code}:${classInfo.startTime}:${timeframe}`;
   }
 
   async sendUrgentClassReminderOnce(userId, classInfo, minutes) {
@@ -119,9 +130,7 @@ class NotificationService {
     );
 
     if (this.sentNotifications.has(notificationKey)) {
-      console.log(
-        `⏭️ Notification already sent for class ${classInfo.code} (${minutes} min) to user ${userId}`
-      );
+      // console.log(`⏭️ Notification already sent for class ${classInfo.code} (${minutes} min) to user ${userId}`);
       return;
     }
 
