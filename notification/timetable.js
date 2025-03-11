@@ -92,20 +92,14 @@ class NotificationService {
         return;
       }
 
+      // Only check for classes starting in 5 minutes
       if (upcomingClasses.within5Min && upcomingClasses.within5Min.length > 0) {
         for (const classInfo of upcomingClasses.within5Min) {
           await this.sendUrgentClassReminderOnce(userId, classInfo, 5);
         }
       }
 
-      if (
-        upcomingClasses.within30Min &&
-        upcomingClasses.within30Min.length > 0
-      ) {
-        for (const classInfo of upcomingClasses.within30Min) {
-          await this.sendUrgentClassReminderOnce(userId, classInfo, 30);
-        }
-      }
+      // Removed 30-minute notification check
     } catch (error) {
       console.error(
         `❌ Error checking classes for user ${userId}:`,
@@ -134,8 +128,8 @@ class NotificationService {
       return;
     }
 
-    const urgencyEmoji = minutes === 5 ? "⚠️" : "🔔";
-    const timeText = minutes === 5 ? "5 minutes" : "30 minutes";
+    const urgencyEmoji = "⚠️";
+    const timeText = "5 minutes";
 
     const message = [
       `${urgencyEmoji} *Class Starting in ${timeText}!*`,
