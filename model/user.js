@@ -35,6 +35,15 @@ const UserSchema = new mongoose.Schema(
       type: Object,
       default: null,
     },
+
+    notifiedAttendanceUpdates: {
+      type: [String],
+      default: [],
+    },
+    lastAttendanceUpdate: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
