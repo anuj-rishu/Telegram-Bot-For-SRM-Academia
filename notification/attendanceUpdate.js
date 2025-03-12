@@ -5,12 +5,43 @@ const sessionManager = require("../utils/sessionManager");
 class AttendanceNotificationService {
   constructor(bot) {
     this.bot = bot;
-    this.checkAttendanceUpdates();
+    this.notifiedUpdates = new Map();
     console.log("✅ Attendance notification service initialized");
 
+    this.loadNotifiedUpdatesFromDB();
+
+    setTimeout(() => this.checkAttendanceUpdates(), 10000);
     setInterval(() => this.checkAttendanceUpdates(), 60 * 1000);
 
-    this.notifiedUpdates = new Map();
+    setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
+  }
+
+  async loadNotifiedUpdatesFromDB() {
+    try {
+      console.log("Loading notified updates from database...");
+      const users = await User.find({
+        notifiedAttendanceUpdates: { $exists: true },
+      });
+
+      for (const user of users) {
+        if (
+          user.notifiedAttendanceUpdates &&
+          Array.isArray(user.notifiedAttendanceUpdates)
+        ) {
+          user.notifiedAttendanceUpdates.forEach((update) => {
+            if (update && update.id && update.timestamp) {
+              this.notifiedUpdates.set(update.id, update.timestamp);
+            }
+          });
+        }
+      }
+
+      console.log(
+        `Loaded ${this.notifiedUpdates.size} previously notified updates`
+      );
+    } catch (error) {
+      console.error("Error loading notified updates from database:", error);
+    }
   }
 
   async checkAttendanceUpdates() {
@@ -72,6 +103,8 @@ class AttendanceNotificationService {
               );
 
               this.markUpdatesAsNotified(user.telegramId, newUpdates);
+
+              await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
             } else {
               console.log(
                 `All updates for user ${user.telegramId} already notified, skipping notification`
@@ -94,6 +127,45 @@ class AttendanceNotificationService {
       }
     } catch (error) {
       console.error("Error in attendance update check:", error);
+    }
+  }
+
+  async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
+    try {
+      const user = await User.findOne({ telegramId });
+      if (!user) return;
+
+      const notifiedUpdates = user.notifiedAttendanceUpdates || [];
+
+      newUpdates.forEach((update) => {
+        const updateId = this.generateUpdateIdentifier(
+          telegramId,
+          update.new,
+          update.type
+        );
+        notifiedUpdates.push({
+          id: updateId,
+          timestamp: Date.now(),
+          courseTitle: update.new.courseTitle,
+          type: update.type,
+        });
+      });
+
+      const MAX_STORED_UPDATES = 100;
+      const updatesToStore = notifiedUpdates.slice(-MAX_STORED_UPDATES);
+
+      await User.findByIdAndUpdate(user._id, {
+        notifiedAttendanceUpdates: updatesToStore,
+      });
+
+      console.log(
+        `Saved ${newUpdates.length} notified updates to database for user ${telegramId}`
+      );
+    } catch (error) {
+      console.error(
+        `Error saving notified updates to database for user ${telegramId}:`,
+        error
+      );
     }
   }
 
@@ -227,11 +299,6 @@ class AttendanceNotificationService {
 
     let message = "🔔 *Attendance Update Alert!*\n\n";
 
-    let overallOld = 0;
-    let overallNew = 0;
-    let totalOldClasses = 0;
-    let totalNewClasses = 0;
-
     coursesWithChanges.forEach((update) => {
       const hoursConducted = parseInt(update.new.hoursConducted);
       const hoursAbsent = parseInt(update.new.hoursAbsent);
@@ -258,31 +325,10 @@ class AttendanceNotificationService {
           message += `New classes: ${newClasses}\n`;
           message += `Attended: ${attendedNew}/${newClasses}\n`;
         }
-
-        overallOld += oldHoursPresent;
-        totalOldClasses += oldHoursConducted;
       }
 
-      overallNew += hoursPresent;
-      totalNewClasses += hoursConducted;
       message += "\n";
     });
-
-    if (totalOldClasses > 0 && totalNewClasses > 0) {
-      const newOverallPercentage = this.calculatePercentage(
-        overallNew,
-        totalNewClasses
-      );
-      const oldOverallPercentage = this.calculatePercentage(
-        overallOld,
-        totalOldClasses
-      );
-      const overallEmoji = this.getAttendanceEmoji(newOverallPercentage);
-
-      message += `📊 *Overall Attendance*\n`;
-      message += `${overallEmoji} Current: ${overallNew}/${totalNewClasses} (${newOverallPercentage}%)\n`;
-      message += `Previous: ${overallOld}/${totalOldClasses} (${oldOverallPercentage}%)\n`;
-    }
 
     try {
       await this.bot.telegram.sendMessage(telegramId, message, {

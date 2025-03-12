@@ -37,13 +37,13 @@ const UserSchema = new mongoose.Schema(
     },
 
     notifiedAttendanceUpdates: {
-      type: [String],
-      default: [],
+      type: Array,
+      default: []
     },
     lastAttendanceUpdate: {
       type: Date,
-      default: null,
-    },
+      default: null
+    }
   },
   { timestamps: true }
 );
