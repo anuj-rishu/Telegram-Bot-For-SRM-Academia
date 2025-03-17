@@ -52,16 +52,18 @@ async function handleAttendance(ctx) {
         const hoursAbsent = parseInt(course.hoursAbsent);
         const hoursPresent = hoursConducted - hoursAbsent;
         const attendancePercentage = parseFloat(course.attendancePercentage);
+        const categoryEmoji = course.category === "Theory" ? "📖" : "🧪";
 
         let courseEmoji = "❌";
         if (attendancePercentage >= 90) courseEmoji = "✅";
         else if (attendancePercentage >= 75) courseEmoji = "✳️";
         else if (attendancePercentage >= 60) courseEmoji = "⚠️";
 
-        message += `📚*${course.courseTitle}*\n`;
+        message += `📚*${course.courseTitle}* (${course.category})*\n`;
+
         message += `${courseEmoji} *Attendance: ${attendancePercentage}%*\n`;
-        message += `👉 Present: ${hoursPresent}/${hoursConducted}\n`;
-        message += `👉 Absent: ${hoursAbsent}\n`;
+        message += `╰┈➤ Present: ${hoursPresent}/${hoursConducted}\n`;
+        message += `╰┈➤ Absent: ${hoursAbsent}\n`;
 
         if (attendancePercentage >= 75) {
           const skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);

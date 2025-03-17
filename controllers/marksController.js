@@ -104,7 +104,7 @@ async function handleMarks(ctx) {
               else if (testPercentage >= 60) testEmoji = "⚠️";
               else testEmoji = "❌";
 
-              message += `  ${testEmoji} ${test.test}: ${test.marks.scored}/${test.marks.total}\n`;
+              message += `╰┈➤ ${testEmoji} ${test.test}: ${test.marks.scored}/${test.marks.total}\n`;
             });
           } else if (
             !course.overall ||

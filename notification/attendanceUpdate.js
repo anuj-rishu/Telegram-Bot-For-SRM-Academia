@@ -147,6 +147,7 @@ class AttendanceNotificationService {
           id: updateId,
           timestamp: Date.now(),
           courseTitle: update.new.courseTitle,
+          category: update.new.category,
           type: update.type,
         });
       });
@@ -170,7 +171,7 @@ class AttendanceNotificationService {
   }
 
   generateUpdateIdentifier(telegramId, course, type) {
-    const courseDetails = `${course.courseTitle}-${course.hoursConducted}-${course.hoursAbsent}`;
+    const courseDetails = `${course.courseTitle}-${course.category}-${course.hoursConducted}-${course.hoursAbsent}`;
     return `${telegramId}:${courseDetails}:${type}`;
   }
 
@@ -205,7 +206,7 @@ class AttendanceNotificationService {
 
     newData.attendance.forEach((newCourse) => {
       const oldCourse = oldData.attendance.find(
-        (c) => c.courseTitle === newCourse.courseTitle
+        (c) => c.courseTitle === newCourse.courseTitle && c.category === newCourse.category
       );
 
       if (!oldCourse) {
@@ -306,7 +307,7 @@ class AttendanceNotificationService {
       const newPercentage = parseFloat(update.new.attendancePercentage);
       const emoji = this.getAttendanceEmoji(newPercentage);
 
-      message += `📚 *${update.courseName || update.new.courseTitle}*\n`;
+      message += `📚 *${update.courseName || update.new.courseTitle}* (${update.new.category})\n`;
       message += `${emoji} Current: ${hoursPresent}/${hoursConducted} (${newPercentage}%)\n`;
 
       if (update.old) {
