@@ -13,10 +13,7 @@ const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
 
-
-
-// const CustomMessageService = require("./services/customMessageService");
-
+const CustomMessageService = require("./services/customMessageService");
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
@@ -24,7 +21,6 @@ const stage = new Scenes.Stage([loginScene]);
 
 bot.use(session());
 bot.use(stage.middleware());
-
 
 bot.start((ctx) => {
   ctx.replyWithMarkdown(
@@ -42,8 +38,6 @@ bot.start((ctx) => {
   );
 });
 
-
-
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 
@@ -52,26 +46,12 @@ new NotificationService(bot);
 new MarksNotificationService(bot);
 new AttendanceNotificationService(bot);
 
-
-// **customMessageService**
-
-// const messageService = new CustomMessageService(bot);
-// bot.messageService = messageService;
-
-// const announcement = '📢 *Notification*\n\nWe only send out notifications of upcoming classes five minutes prior to start time due to billing issues. .';
-
-// messageService.broadcastMessage(announcement)
-//   .then(result => {
-//     console.log(`Sent to ${result.results.successful} users out of ${result.results.total}`);
-//   });
-
-
-
 // Logout command
 bot.command("logout", requireLogin, authController.handleLogout);
 
-
-
+//custom message
+const messageService = new CustomMessageService(bot);
+bot.messageService = messageService;
 
 // Attendance command
 bot.command("attendance", requireLogin, attendanceController.handleAttendance);

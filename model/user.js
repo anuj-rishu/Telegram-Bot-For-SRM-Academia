@@ -36,15 +36,24 @@ const UserSchema = new mongoose.Schema(
       default: null,
     },
 
+    notifiedMarksUpdates: {
+      type: Array,
+      default: [],
+    },
+    lastMarksUpdate: {
+      type: Date,
+      default: null,
+    },
     notifiedAttendanceUpdates: {
       type: Array,
-      default: []
+      default: [],
     },
     lastAttendanceUpdate: {
       type: Date,
-      default: null
-    }
+      default: null,
+    },
   },
+
   { timestamps: true }
 );
 
