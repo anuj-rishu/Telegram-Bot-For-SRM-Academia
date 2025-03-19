@@ -206,7 +206,9 @@ class AttendanceNotificationService {
 
     newData.attendance.forEach((newCourse) => {
       const oldCourse = oldData.attendance.find(
-        (c) => c.courseTitle === newCourse.courseTitle && c.category === newCourse.category
+        (c) =>
+          c.courseTitle === newCourse.courseTitle &&
+          c.category === newCourse.category
       );
 
       if (!oldCourse) {
@@ -307,7 +309,9 @@ class AttendanceNotificationService {
       const newPercentage = parseFloat(update.new.attendancePercentage);
       const emoji = this.getAttendanceEmoji(newPercentage);
 
-      message += `📚 *${update.courseName || update.new.courseTitle}* (${update.new.category})\n`;
+      message += `📚 *${update.courseName || update.new.courseTitle}* (${
+        update.new.category
+      })\n`;
       message += `${emoji} Current: ${hoursPresent}/${hoursConducted} (${newPercentage}%)\n`;
 
       if (update.old) {
@@ -326,6 +330,19 @@ class AttendanceNotificationService {
           message += `New classes: ${newClasses}\n`;
           message += `Attended: ${attendedNew}/${newClasses}\n`;
         }
+      }
+
+      if (newPercentage >= 75) {
+        const skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);
+        message += `🎯 *Can skip:* ${Math.max(0, skippable)} more classes\n`;
+      } else {
+        const classesNeeded = Math.ceil(
+          (0.75 * hoursConducted - hoursPresent) / 0.25
+        );
+        message += `📌 *Need to attend:* ${Math.max(
+          1,
+          classesNeeded
+        )} more classes\n`;
       }
 
       message += "\n";
