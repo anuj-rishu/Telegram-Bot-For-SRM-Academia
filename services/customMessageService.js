@@ -46,8 +46,7 @@ class CustomMessageService {
 
     try {
       const notificationApiUrl =
-        process.env.NOTIFICATION_API_URL ||
-        "https://notification-sender-for-telegram-bot.vercel.app/api/notifications/get-notification";
+        process.env.NOTIFICATION_API_URL;
       const response = await axios.get(notificationApiUrl);
 
       const data = response.data;
