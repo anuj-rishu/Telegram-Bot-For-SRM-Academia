@@ -2,29 +2,44 @@ const { Scenes, Markup } = require("telegraf");
 const moment = require("moment");
 const Task = require("../model/task");
 
+const cancelKeyboard = Markup.keyboard([["❌ Cancel"]]).resize();
+
 const taskScene = new Scenes.WizardScene(
   "task",
 
   async (ctx) => {
     ctx.wizard.state.task = {};
-    await ctx.reply("Please enter a name for your task:");
+
+    await ctx.reply("Please enter a name for your task:", cancelKeyboard);
+
     return ctx.wizard.next();
   },
 
   async (ctx) => {
+    if (ctx.message && ctx.message.text === "❌ Cancel") {
+      await ctx.reply("Task creation cancelled.", Markup.removeKeyboard());
+      return ctx.scene.leave();
+    }
+
     if (!ctx.message || !ctx.message.text) {
-      await ctx.reply("Please enter a valid task name:");
+      await ctx.reply("Please enter a valid task name:", cancelKeyboard);
       return;
     }
 
     ctx.wizard.state.task.taskName = ctx.message.text;
     await ctx.reply(
-      "Enter a description for your task (or send /skip to skip):"
+      "Enter a description for your task (or send /skip to skip):",
+      cancelKeyboard
     );
     return ctx.wizard.next();
   },
 
   async (ctx) => {
+    if (ctx.message && ctx.message.text === "❌ Cancel") {
+      await ctx.reply("Task creation cancelled.", Markup.removeKeyboard());
+      return ctx.scene.leave();
+    }
+
     if (ctx.message && ctx.message.text) {
       if (ctx.message.text === "/skip") {
         ctx.wizard.state.task.description = "";
@@ -32,20 +47,29 @@ const taskScene = new Scenes.WizardScene(
         ctx.wizard.state.task.description = ctx.message.text;
       }
     } else {
-      await ctx.reply("Please enter a valid description or /skip:");
+      await ctx.reply(
+        "Please enter a valid description or /skip:",
+        cancelKeyboard
+      );
       return;
     }
 
-    await ctx.reply(
-      "Select a date for your task:",
-      await getCalendarKeyboard(moment())
-    );
+    await ctx.reply("📆 Select a date:", await getCalendarKeyboard(moment()));
+
     return ctx.wizard.next();
   },
 
   async (ctx) => {
+    if (ctx.message && ctx.message.text === "❌ Cancel") {
+      await ctx.reply("Task creation cancelled.", Markup.removeKeyboard());
+      return ctx.scene.leave();
+    }
+
     if (!ctx.callbackQuery) {
-      await ctx.reply("Please select a date from the calendar:");
+      await ctx.reply(
+        "Please select a date from the calendar:",
+        cancelKeyboard
+      );
       return;
     }
 
@@ -59,23 +83,24 @@ const taskScene = new Scenes.WizardScene(
         ctx.wizard.state.task.selectedDate = selectedDate;
 
         await ctx.answerCbQuery();
-        await ctx.reply(`Date selected: ${selectedDate}`);
+
+        const inlineKeyboard = Markup.inlineKeyboard([
+          [
+            Markup.button.callback("09:00", "time:09:00"),
+            Markup.button.callback("12:00", "time:12:00"),
+            Markup.button.callback("15:00", "time:15:00"),
+          ],
+          [
+            Markup.button.callback("18:00", "time:18:00"),
+            Markup.button.callback("20:00", "time:20:00"),
+            Markup.button.callback("22:00", "time:22:00"),
+          ],
+          [Markup.button.callback("Custom time", "time:custom")],
+        ]);
 
         await ctx.reply(
-          "Enter the time (HH:MM format, 24-hour):",
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback("09:00", "time:09:00"),
-              Markup.button.callback("12:00", "time:12:00"),
-              Markup.button.callback("15:00", "time:15:00"),
-            ],
-            [
-              Markup.button.callback("18:00", "time:18:00"),
-              Markup.button.callback("20:00", "time:20:00"),
-              Markup.button.callback("22:00", "time:22:00"),
-            ],
-            [Markup.button.callback("Custom time", "time:custom")],
-          ])
+          "⏰ Select time (or type in HH:MM format):",
+          inlineKeyboard
         );
 
         return ctx.wizard.next();
@@ -100,10 +125,15 @@ const taskScene = new Scenes.WizardScene(
       }
     }
 
-    await ctx.reply("Please select a date from the calendar:");
+    await ctx.reply("Please select a date from the calendar:", cancelKeyboard);
   },
 
   async (ctx) => {
+    if (ctx.message && ctx.message.text === "❌ Cancel") {
+      await ctx.reply("Task creation cancelled.", Markup.removeKeyboard());
+      return ctx.scene.leave();
+    }
+
     let selectedTime;
 
     if (ctx.callbackQuery && ctx.callbackQuery.data.startsWith("time:")) {
@@ -111,7 +141,10 @@ const taskScene = new Scenes.WizardScene(
 
       if (time === "custom") {
         await ctx.answerCbQuery();
-        await ctx.reply("Please enter the time in HH:MM format (24-hour):");
+        await ctx.reply(
+          "Please enter the time in HH:MM format (24-hour):",
+          cancelKeyboard
+        );
         return;
       } else {
         selectedTime = time;
@@ -121,52 +154,97 @@ const taskScene = new Scenes.WizardScene(
       const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
       if (!timeRegex.test(ctx.message.text)) {
         await ctx.reply(
-          "Invalid time format. Please use HH:MM format (24-hour):"
+          "Invalid time format. Please use HH:MM format (24-hour):",
+          cancelKeyboard
         );
         return;
       }
       selectedTime = ctx.message.text;
     } else {
-      await ctx.reply("Please enter a valid time in HH:MM format (24-hour):");
+      await ctx.reply(
+        "Please enter a valid time in HH:MM format (24-hour):",
+        cancelKeyboard
+      );
       return;
     }
 
     ctx.wizard.state.task.selectedTime = selectedTime;
 
+    const reminderButtons = Markup.inlineKeyboard([
+      [
+        Markup.button.callback("5 minutes", "reminder:5"),
+        Markup.button.callback("10 minutes", "reminder:10"),
+      ],
+      [
+        Markup.button.callback("15 minutes", "reminder:15"),
+        Markup.button.callback("30 minutes", "reminder:30"),
+      ],
+      [
+        Markup.button.callback("1 hour", "reminder:60"),
+        Markup.button.callback("1:30 hours", "reminder:90"),
+      ],
+      [
+        Markup.button.callback("2 hours", "reminder:120"),
+        Markup.button.callback("2:30 hours", "reminder:150"),
+      ],
+
+      [Markup.button.callback("Custom time", "reminder:custom")],
+    ]);
+
     await ctx.reply(
-      "How much time before the task should I send a reminder?",
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback("5 minutes", "reminder:5"),
-          Markup.button.callback("10 minutes", "reminder:10"),
-        ],
-        [
-          Markup.button.callback("15 minutes", "reminder:15"),
-          Markup.button.callback("30 minutes", "reminder:30"),
-        ],
-        [
-          Markup.button.callback("1 hour", "reminder:60"),
-          Markup.button.callback("1:30 hours", "reminder:90"),
-        ],
-        [
-          Markup.button.callback("2 hours", "reminder:120"),
-          Markup.button.callback("2:30 hours", "reminder:150"),
-        ],
-      ])
+      "⏰ Select reminder time before the task:",
+      reminderButtons
     );
 
     return ctx.wizard.next();
   },
 
   async (ctx) => {
+    if (ctx.message && ctx.message.text === "❌ Cancel") {
+      await ctx.reply("Task creation cancelled.", Markup.removeKeyboard());
+      return ctx.scene.leave();
+    }
+
     let reminderMinutes;
 
     if (ctx.callbackQuery && ctx.callbackQuery.data.startsWith("reminder:")) {
       const reminderData = ctx.callbackQuery.data.split(":")[1];
-      reminderMinutes = parseInt(reminderData);
-      await ctx.answerCbQuery();
+
+      if (reminderData === "custom") {
+        await ctx.answerCbQuery();
+        await ctx.reply(
+          "Enter custom reminder time (5-1440 minutes).\n" +
+            "Examples:\n" +
+            "• 5 = 5 minutes before\n" +
+            "• 60 = 1 hour before\n" +
+            "• 90 = 1 hour 30 minutes before\n" +
+            "• 120 = 2 hours before\n" +
+            "• 720 = 12 hours before\n" +
+            "• 1440 = 24 hours before",
+          cancelKeyboard
+        );
+        return;
+      } else {
+        reminderMinutes = parseInt(reminderData);
+        await ctx.answerCbQuery();
+      }
+    } else if (ctx.message && ctx.message.text) {
+      const customMinutes = parseInt(ctx.message.text);
+
+      if (isNaN(customMinutes) || customMinutes < 5 || customMinutes > 1440) {
+        await ctx.reply(
+          "Please enter a valid number between 5 and 1440 minutes (24 hours):",
+          cancelKeyboard
+        );
+        return;
+      }
+
+      reminderMinutes = customMinutes;
     } else {
-      await ctx.reply("Please select a reminder time from the options:");
+      await ctx.reply(
+        "Please select a reminder time from the options:",
+        cancelKeyboard
+      );
       return;
     }
 
@@ -190,7 +268,6 @@ const taskScene = new Scenes.WizardScene(
 
       const formattedDate = moment(dueDate).format("MMMM Do YYYY, h:mm a");
 
-      // Format reminder time in a human-readable way
       let reminderText = "";
       if (reminderMinutes < 60) {
         reminderText = `${reminderMinutes} minutes`;
@@ -221,13 +298,19 @@ const taskScene = new Scenes.WizardScene(
           `*Due:* ${formattedDate}\n` +
           `*Reminder:* ${reminderText} before\n\n` +
           `You'll receive a reminder ${reminderText} before the task is due.`,
-        { parse_mode: "Markdown" }
+        {
+          parse_mode: "Markdown",
+          ...Markup.removeKeyboard(),
+        }
       );
 
       return ctx.scene.leave();
     } catch (error) {
       console.error("Error saving task:", error);
-      await ctx.reply("❌ Error creating task. Please try again.");
+      await ctx.reply(
+        "❌ Error creating task. Please try again.",
+        Markup.removeKeyboard()
+      );
       return ctx.scene.leave();
     }
   }
