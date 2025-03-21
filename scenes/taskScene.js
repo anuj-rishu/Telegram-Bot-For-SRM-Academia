@@ -144,6 +144,14 @@ const taskScene = new Scenes.WizardScene(
           Markup.button.callback("15 minutes", "reminder:15"),
           Markup.button.callback("30 minutes", "reminder:30"),
         ],
+        [
+          Markup.button.callback("1 hour", "reminder:60"),
+          Markup.button.callback("1:30 hours", "reminder:90"),
+        ],
+        [
+          Markup.button.callback("2 hours", "reminder:120"),
+          Markup.button.callback("2:30 hours", "reminder:150"),
+        ],
       ])
     );
 
@@ -151,15 +159,18 @@ const taskScene = new Scenes.WizardScene(
   },
 
   async (ctx) => {
-    if (!ctx.callbackQuery || !ctx.callbackQuery.data.startsWith("reminder:")) {
+    let reminderMinutes;
+
+    if (ctx.callbackQuery && ctx.callbackQuery.data.startsWith("reminder:")) {
+      const reminderData = ctx.callbackQuery.data.split(":")[1];
+      reminderMinutes = parseInt(reminderData);
+      await ctx.answerCbQuery();
+    } else {
       await ctx.reply("Please select a reminder time from the options:");
       return;
     }
 
-    const reminderMinutes = parseInt(ctx.callbackQuery.data.split(":")[1]);
     ctx.wizard.state.task.reminderMinutes = reminderMinutes;
-
-    await ctx.answerCbQuery();
 
     const dateTimeString = `${ctx.wizard.state.task.selectedDate} ${ctx.wizard.state.task.selectedTime}`;
     const dueDate = moment(dateTimeString, "YYYY-MM-DD HH:mm").toDate();
@@ -178,13 +189,38 @@ const taskScene = new Scenes.WizardScene(
       await task.save();
 
       const formattedDate = moment(dueDate).format("MMMM Do YYYY, h:mm a");
+
+      // Format reminder time in a human-readable way
+      let reminderText = "";
+      if (reminderMinutes < 60) {
+        reminderText = `${reminderMinutes} minutes`;
+      } else if (reminderMinutes === 60) {
+        reminderText = "1 hour";
+      } else if (reminderMinutes === 90) {
+        reminderText = "1 hour 30 minutes";
+      } else if (reminderMinutes === 120) {
+        reminderText = "2 hours";
+      } else if (reminderMinutes === 240) {
+        reminderText = "4 hours";
+      } else if (reminderMinutes === 720) {
+        reminderText = "12 hours";
+      } else if (reminderMinutes === 1440) {
+        reminderText = "24 hours";
+      } else {
+        const hours = Math.floor(reminderMinutes / 60);
+        const mins = reminderMinutes % 60;
+        reminderText = `${hours} hour${hours > 1 ? "s" : ""}${
+          mins > 0 ? ` ${mins} minute${mins > 1 ? "s" : ""}` : ""
+        }`;
+      }
+
       await ctx.reply(
         `✅ Task created successfully!\n\n` +
           `*Task:* ${taskName}\n` +
           `*Description:* ${description || "N/A"}\n` +
           `*Due:* ${formattedDate}\n` +
-          `*Reminder:* ${reminderMinutes} minutes before\n\n` +
-          `You'll receive a reminder ${reminderMinutes} minutes before the task is due.`,
+          `*Reminder:* ${reminderText} before\n\n` +
+          `You'll receive a reminder ${reminderText} before the task is due.`,
         { parse_mode: "Markdown" }
       );
 
