@@ -2,11 +2,40 @@ const moment = require("moment");
 const Task = require("../model/task");
 
 class TaskNotificationService {
-  constructor(bot) {
+    constructor(bot) {
     this.bot = bot;
     console.log("✅ Task notification service initialized");
-
-    setInterval(() => this.checkTaskReminders(), 60 * 1000);
+  
+    setInterval(() => this.checkTaskReminders(), 5 * 60 * 1000); // Changed from 1 min to 5 min
+  }
+  
+  async checkTaskReminders() {
+    try {
+      const now = new Date();
+  
+      const tasks = await Task.find({
+        isCompleted: false,
+        reminderSent: false,
+      });
+  
+      for (const task of tasks) {
+        const reminderTime = new Date(
+          task.dueDate.getTime() - task.reminderMinutes * 60 * 1000
+        );
+  
+        if (
+          reminderTime <= now &&
+          reminderTime >= new Date(now.getTime() - 5 * 60 * 1000) // Changed to match the 5-minute polling interval
+        ) {
+          await this.sendTaskReminder(task);
+  
+          task.reminderSent = true;
+          await task.save();
+        }
+      }
+    } catch (error) {
+      console.error("Error checking task reminders:", error);
+    }
   }
 
   async checkTaskReminders() {

@@ -3,16 +3,16 @@ const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 
 class AttendanceNotificationService {
-  constructor(bot) {
+    constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
     console.log("✅ Attendance notification service initialized");
-
+  
     this.loadNotifiedUpdatesFromDB();
-
+  
     setTimeout(() => this.checkAttendanceUpdates(), 10000);
-    setInterval(() => this.checkAttendanceUpdates(), 60 * 1000);
-
+    setInterval(() => this.checkAttendanceUpdates(), 5 * 60 * 1000); // Changed from 1 min to 5 min
+  
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 

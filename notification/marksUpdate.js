@@ -3,7 +3,7 @@ const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 
 class MarksNotificationService {
-  constructor(bot) {
+    constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
     console.log("✅ Marks notification service initialized");
@@ -11,7 +11,7 @@ class MarksNotificationService {
     this.loadNotifiedUpdatesFromDB();
     
     setTimeout(() => this.checkMarksUpdates(), 10000);
-    setInterval(() => this.checkMarksUpdates(), 60 * 1000);
+    setInterval(() => this.checkMarksUpdates(), 5 * 60 * 1000); // Changed from 1 min to 5 min
     
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
