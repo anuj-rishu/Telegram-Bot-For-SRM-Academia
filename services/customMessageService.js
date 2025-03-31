@@ -29,7 +29,7 @@ class CustomMessageService {
     console.log("🔍 Checking for new notifications...");
 
     const currentTime = Date.now();
-    const tenMinutesInMs = 10 * 60 * 1000;
+    const tenMinutesInMs = 10 * 60 * 1000
 
     if (
       this.lastNotificationSent &&
@@ -45,8 +45,7 @@ class CustomMessageService {
     }
 
     try {
-      const notificationApiUrl =
-        process.env.NOTIFICATION_API_URL;
+      const notificationApiUrl = process.env.NOTIFICATION_API_URL;
       const response = await axios.get(notificationApiUrl);
 
       const data = response.data;
@@ -57,23 +56,25 @@ class CustomMessageService {
         let newNotificationsCount = 0;
 
         for (const notification of data.notifications) {
-          const notificationExists = await NotificationTracking.findOne({
-            notificationId: notification.id,
-          });
-
-          if (!notificationExists) {
-            console.log(`📤 Sending new notification: ${notification.id}`);
-            await this.broadcastMessage(notification.message);
-
+          try {
+            // First try to save the notification record - will fail if it already exists
             await new NotificationTracking({
               notificationId: notification.id,
             }).save();
-
+            
+            // If save was successful, then send the notification
+            console.log(`📤 Sending new notification: ${notification.id}`);
+            await this.broadcastMessage(notification.message);
             newNotificationsCount++;
-          } else {
-            console.log(
-              `📝 Skipping already sent notification: ${notification.id}`
-            );
+          } catch (error) {
+            if (error.code === 11000) {
+              // This is a duplicate key error (notification already exists)
+              console.log(
+                `📝 Skipping already sent notification: ${notification.id}`
+              );
+            } else {
+              console.error(`Error processing notification ${notification.id}:`, error);
+            }
           }
         }
 
