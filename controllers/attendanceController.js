@@ -22,7 +22,9 @@ async function handleAttendance(ctx) {
     );
 
     if (!response || !response.data) {
-      return ctx.reply("Unable to fetch attendance data. Please try again later.");
+      return ctx.reply(
+        "Unable to fetch attendance data. Please try again later."
+      );
     }
 
     const attendanceData = response.data;
@@ -35,14 +37,13 @@ async function handleAttendance(ctx) {
         Array.isArray(attendanceData.attendance) &&
         attendanceData.attendance.length > 0
       ) {
-        // Calculate total stats safely
         let totalClasses = 0;
         let totalAbsent = 0;
 
-        attendanceData.attendance.forEach(course => {
+        attendanceData.attendance.forEach((course) => {
           const hoursConducted = parseInt(course.hoursConducted || 0);
           const hoursAbsent = parseInt(course.hoursAbsent || 0);
-          
+
           totalClasses += isNaN(hoursConducted) ? 0 : hoursConducted;
           totalAbsent += isNaN(hoursAbsent) ? 0 : hoursAbsent;
         });
@@ -61,17 +62,18 @@ async function handleAttendance(ctx) {
         message += `📚 *Total Classes: ${totalClasses}*\n`;
         message += `━━━━━━━━━━━━━\n\n`;
 
-        // Process each course safely
         for (const course of attendanceData.attendance) {
           if (!course) continue;
 
           const hoursConducted = parseInt(course.hoursConducted || 0);
           const hoursAbsent = parseInt(course.hoursAbsent || 0);
           const hoursPresent = hoursConducted - hoursAbsent;
-          const attendancePercentage = parseFloat(course.attendancePercentage || 0);
+          const attendancePercentage = parseFloat(
+            course.attendancePercentage || 0
+          );
           const category = course.category || "Unknown";
           const courseTitle = course.courseTitle || "Unknown Course";
-          
+
           const categoryEmoji = category === "Theory" ? "📖" : "🧪";
 
           let courseEmoji = "❌";
@@ -89,13 +91,21 @@ async function handleAttendance(ctx) {
             if (hoursPresent > 0 && hoursConducted > 0) {
               skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);
             }
-            message += `🎯 *Can skip:* ${Math.max(0, skippable)} more classes\n`;
+            message += `🎯 *Can skip:* ${Math.max(
+              0,
+              skippable
+            )} more classes\n`;
           } else {
             let classesNeeded = 1;
             if (hoursConducted > 0) {
-              classesNeeded = Math.ceil((0.75 * hoursConducted - hoursPresent) / 0.25);
+              classesNeeded = Math.ceil(
+                (0.75 * hoursConducted - hoursPresent) / 0.25
+              );
             }
-            message += `📌 *Need to attend:* ${Math.max(1, classesNeeded)} more classes\n`;
+            message += `📌 *Need to attend:* ${Math.max(
+              1,
+              classesNeeded
+            )} more classes\n`;
           }
           message += `\n`;
         }
@@ -104,7 +114,9 @@ async function handleAttendance(ctx) {
       }
     } catch (processingError) {
       console.error("Error processing attendance data:", processingError);
-      return ctx.reply("Error processing your attendance data. Please try again later.");
+      return ctx.reply(
+        "Error processing your attendance data. Please try again later."
+      );
     }
 
     await ctx.replyWithMarkdown(message);
