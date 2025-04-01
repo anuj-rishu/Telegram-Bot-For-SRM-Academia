@@ -37,7 +37,7 @@ The SRM Academia Telegram Bot handles sensitive user data and academic informati
 1. **Never share your bot sessions** with others
 2. **Use /logout** when you've finished using the bot on shared devices
 3. **Set up 2FA** on your Telegram account
-4. **Verify** you're using the official bot (@SRMAcademiaBot)
+4. **Verify** you're using the official bot (@srm_academia_bot)
 5. **Report suspicious behavior** immediately
 
 ## Vulnerability Disclosure Policy
