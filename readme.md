@@ -2,7 +2,7 @@
 
 A Telegram bot that provides SRM University students with easy access to their academic information, including attendance, marks, class schedules, and real-time notifications.
 
-## 📌 Features
+## 📌 Features: 
 
 - 🔐 **Secure Authentication**: Login with your SRM credentials.
 - 📊 **Attendance Tracking**: Check your attendance percentage for all courses.
