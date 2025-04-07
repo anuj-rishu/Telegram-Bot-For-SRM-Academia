@@ -14,12 +14,18 @@ async function handleAttendance(ctx) {
   }
 
   try {
-    ctx.reply("Fetching your attendance data...");
+    await ctx.reply("Fetching your attendance data...");
+
+    const loadingInterval = setInterval(() => {
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+    }, 3000);
 
     const response = await apiService.makeAuthenticatedRequest(
       "/attendance",
       session
     );
+
+    clearInterval(loadingInterval);
 
     if (!response || !response.data) {
       return ctx.reply(

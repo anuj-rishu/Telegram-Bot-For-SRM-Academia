@@ -1,5 +1,5 @@
-const apiService = require('../services/apiService');
-const sessionManager = require('../utils/sessionManager');
+const apiService = require("../services/apiService");
+const sessionManager = require("../utils/sessionManager");
 
 /**
  * Handle courses command
@@ -8,61 +8,67 @@ const sessionManager = require('../utils/sessionManager');
 async function handleCourses(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
-  
+
+  if (!session || !session.token) {
+    return ctx.reply("You need to login first. Use /login command.");
+  }
+
   try {
-    ctx.reply('Fetching your courses...');
+    await ctx.reply("Fetching your courses...");
+
+    const loadingInterval = setInterval(() => {
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+    }, 3000);
     
-    const response = await apiService.makeAuthenticatedRequest('/courses', session);
-    
+    const response = await apiService.makeAuthenticatedRequest(
+      "/courses",
+      session
+    );
+
+    clearInterval(loadingInterval);
+
     const coursesData = response.data;
-    let message = '📚 *Your Courses*\n\n';
-    
-    if (coursesData && coursesData.regNumber) {
-      message += `*Registration Number:* ${coursesData.regNumber}\n\n`;
-    }
-    
+    let message = "📚 *YOUR COURSES*\n";
+    message += "━━━━━━━━━━━━━━━━━━\n\n";
+
     if (coursesData && coursesData.courses && coursesData.courses.length > 0) {
-      
-      const coursesByCategory = {};
-      
-      coursesData.courses.forEach(course => {
-        const category = course.courseCategory || 'Other';
-        if (!coursesByCategory[category]) {
-          coursesByCategory[category] = [];
-        }
-        coursesByCategory[category].push(course);
+      // Sort courses by type (Theory first, then Practical)
+      const sortedCourses = [...coursesData.courses].sort((a, b) => {
+        if (a.type === b.type) return 0;
+        return a.type === "Theory" ? -1 : 1;
       });
       
-    
-      for (const category in coursesByCategory) {
-        message += `*📋 ${category}*\n\n`;
+      sortedCourses.forEach((course) => {
+        const typeEmoji = course.type === "Theory" ? "📖" : "🧪";
         
-        coursesByCategory[category].forEach(course => {
-          message += `📘 *${course.title}* (${course.code})\n`;
-          message += `Credit: ${course.credit} | Type: ${course.type}\n`;
-          message += `Faculty: ${course.faculty}\n`;
-          message += `Slot: ${course.slot} | Room: ${course.room || 'N/A'}\n\n`;
-        });
-      }
-      
-     
+        message += `${typeEmoji} *${course.title}*\n`;
+        message += `╰┈➤ *Code:* ${course.code}\n`;
+        message += `╰┈➤ *Credits:* ${course.credit}\n`;
+        message += `╰┈➤ *Type:* ${course.type}\n`;
+        message += `╰┈➤ *Faculty:* ${course.faculty}\n`;
+        message += `╰┈➤ *Slot:* ${course.slot} | *Room:* ${course.room || "N/A"}\n`;
+        message += `\n`;
+      });
+
       const totalCredits = coursesData.courses.reduce((sum, course) => {
         const credit = parseInt(course.credit) || 0;
         return sum + credit;
       }, 0);
-      
-      message += `*Total Credits: ${totalCredits}*`;
+
+      message += `🎓 *Total Credits: ${totalCredits}*`;
     } else {
-      message = '📚 *Your Courses*\n\nNo courses data available.';
+      message = "📚 *YOUR COURSES*\n\n❌ No courses data available.";
     }
-    
-    ctx.replyWithMarkdown(message);
+
+    await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error('Courses error:', error.response?.data || error.message);
-    ctx.reply(`Error fetching courses: ${error.response?.data?.error || error.message}`);
+    console.error("Courses error:", error.response?.data || error.message);
+    ctx.reply(
+      `Error fetching courses: ${error.response?.data?.error || error.message}`
+    );
   }
 }
 
 module.exports = {
-  handleCourses
+  handleCourses,
 };

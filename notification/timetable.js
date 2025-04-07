@@ -92,14 +92,11 @@ class NotificationService {
         return;
       }
 
-      
       if (upcomingClasses.within5Min && upcomingClasses.within5Min.length > 0) {
         for (const classInfo of upcomingClasses.within5Min) {
           await this.sendUrgentClassReminderOnce(userId, classInfo, 5);
         }
       }
-
-      
     } catch (error) {
       console.error(
         `❌ Error checking classes for user ${userId}:`,
@@ -124,13 +121,11 @@ class NotificationService {
     );
 
     if (this.sentNotifications.has(notificationKey)) {
-     ;
       return;
     }
 
     const urgencyEmoji = "⚠️";
     const timeText = "5 minutes";
-
 
     let attendanceInfo = "";
     try {
@@ -142,14 +137,16 @@ class NotificationService {
 
       if (response?.data?.attendance) {
         const courseAttendance = response.data.attendance.find(
-          course => course.courseCode === classInfo.code
+          (course) => course.courseCode === classInfo.code
         );
 
         if (courseAttendance) {
           const hoursConducted = parseInt(courseAttendance.hoursConducted);
           const hoursAbsent = parseInt(courseAttendance.hoursAbsent);
           const hoursPresent = hoursConducted - hoursAbsent;
-          const attendancePercentage = parseFloat(courseAttendance.attendancePercentage);
+          const attendancePercentage = parseFloat(
+            courseAttendance.attendancePercentage
+          );
 
           let statusEmoji = "❌";
           if (attendancePercentage >= 90) statusEmoji = "✅";
@@ -157,29 +154,37 @@ class NotificationService {
           else if (attendancePercentage >= 60) statusEmoji = "⚠️";
 
           attendanceInfo = `\n📊 *Attendance Status*\n${statusEmoji} *Current: ${attendancePercentage}%*`;
-          
+
           if (attendancePercentage >= 75) {
             const skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);
-            attendanceInfo += `\n🎯 You can skip: ${Math.max(0, skippable)} more classes`;
+            attendanceInfo += `\n🎯 You can skip: ${Math.max(
+              0,
+              skippable
+            )} more classes`;
           } else {
             const classesNeeded = Math.ceil(
               (0.75 * hoursConducted - hoursPresent) / 0.25
             );
-            attendanceInfo += `\n📌 Need to attend: ${Math.max(1, classesNeeded)} more classes`;
+            attendanceInfo += `\n📌 Need to attend: ${Math.max(
+              1,
+              classesNeeded
+            )} more classes`;
           }
         }
       }
     } catch (error) {
-      console.error(`Failed to fetch attendance for class ${classInfo.code}:`, error.message);
+      console.error(
+        `Failed to fetch attendance for class ${classInfo.code}:`,
+        error.message
+      );
     }
 
     const message = [
       `${urgencyEmoji} *Class Starting in ${timeText}!*`,
-      `\n📚 *${classInfo.name}* (${classInfo.code})`,
+      `\n📚 *${classInfo.name}* (${classInfo.courseType})`,
       `⏰ ${classInfo.startTime} - ${classInfo.endTime}`,
       `🏛 Room: ${classInfo.roomNo || "N/A"}`,
-      `📝 Type: ${classInfo.courseType || "N/A"}`,
-      attendanceInfo
+      attendanceInfo,
     ].join("\n");
 
     try {
@@ -218,10 +223,9 @@ class NotificationService {
 
     const message = [
       `🕒 *Upcoming Class in ${timeDisplay}*`,
-      `\n📚 *${classInfo.name}* (${classInfo.code})`,
+      `\n📚 *${classInfo.name}* (${classInfo.courseType})`,
       `⏰ ${classInfo.startTime} - ${classInfo.endTime}`,
       `🏛 Room: ${classInfo.roomNo || "N/A"}`,
-      `📝 Type: ${classInfo.courseType || "N/A"}`,
     ].join("\n");
 
     try {

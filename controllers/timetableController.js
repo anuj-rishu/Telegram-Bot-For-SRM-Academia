@@ -9,10 +9,17 @@ async function handleTimetable(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
-  try {
-    ctx.reply("📊 Fetching your timetable...");
+  if (!session || !session.token) {
+    return ctx.reply("You need to login first. Use /login command.");
+  }
 
-    
+  try {
+    await ctx.reply("📊 Fetching your timetable...");
+
+    const loadingInterval = setInterval(() => {
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+    }, 3000);
+
     const calendarResponse = await apiService.makeAuthenticatedRequest(
       "/calendar",
       session
@@ -23,9 +30,12 @@ async function handleTimetable(ctx) {
       "/timetable",
       session
     );
+
+    clearInterval(loadingInterval);
+
     const timetableData = response.data;
 
-    let message = "� *Complete Timetable*\n\n";
+    let message = "📋 *Complete Timetable*\n\n";
 
     if (timetableData.regNumber) {
       // message += `👤 *Registration Number:* ${timetableData.regNumber}\n`;
@@ -33,7 +43,11 @@ async function handleTimetable(ctx) {
       // message += `━━━━━━━━━━━━━━━━━━\n\n`;
     }
 
-    if (timetableData && timetableData.schedule && timetableData.schedule.length > 0) {
+    if (
+      timetableData &&
+      timetableData.schedule &&
+      timetableData.schedule.length > 0
+    ) {
       timetableData.schedule.forEach((daySchedule) => {
         message += `📌 *Day ${daySchedule.day}*\n`;
         message += `━━━━━━━━━━━━━━━━━━\n`;
@@ -44,9 +58,10 @@ async function handleTimetable(ctx) {
           if (slot) {
             hasClasses = true;
             message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
-            message += `📚 ${slot.name}\n`;
+            // Fixed the erroneous asterisk
+            message += `📚 ${slot.name} (${slot.courseType})\n`;
             message += `🏛 Room: ${slot.roomNo}\n`;
-            message += `📝 Type: ${slot.courseType}\n`;
+
             message += `\n`;
           }
         });
@@ -59,9 +74,13 @@ async function handleTimetable(ctx) {
       message += "❌ No timetable data available.";
     }
 
-    ctx.replyWithMarkdown(message);
+    await ctx.replyWithMarkdown(message);
 
-    if (timetableData && timetableData.schedule && timetableData.schedule.length > 3) {
+    if (
+      timetableData &&
+      timetableData.schedule &&
+      timetableData.schedule.length > 3
+    ) {
       if (dayOrder !== "-") {
         setTimeout(() => {
           ctx.reply(
@@ -88,24 +107,38 @@ async function handleTodayTimetable(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
-  try {
-    // ctx.reply("🔄 Fetching today's classes...");
+  if (!session || !session.token) {
+    return ctx.reply("You need to login first. Use /login command.");
+  }
 
-  
+  try {
+    await ctx.reply("🔄 Fetching today's classes...");
+
+    const loadingInterval = setInterval(() => {
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+    }, 3000);
+
     const calendarResponse = await apiService.makeAuthenticatedRequest(
       "/calendar",
       session
     );
+
     const dayOrder = calendarResponse.data.today.dayOrder;
 
     if (dayOrder === "-") {
-      return ctx.replyWithMarkdown("📚 *Today's Classes*\n\n🎉 No classes today (Holiday/Weekend)");
+      clearInterval(loadingInterval);
+      return ctx.replyWithMarkdown(
+        "📚 *Today's Classes*\n\n🎉 No classes today (Holiday/Weekend)"
+      );
     }
 
     const response = await apiService.makeAuthenticatedRequest(
       "/timetable",
       session
     );
+
+    clearInterval(loadingInterval);
+
     const timetableData = response.data;
 
     let message = `📚 *Today's Classes*\n`;
@@ -124,8 +157,7 @@ async function handleTodayTimetable(ctx) {
           if (slot) {
             hasClasses = true;
             message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
-            message += `📚 ${slot.name}\n`;
-         
+            message += `📚 ${slot.name} (${slot.courseType})\n`;
             message += `🏛 Room: ${slot.roomNo}\n`;
             message += `\n`;
           }
@@ -141,7 +173,7 @@ async function handleTodayTimetable(ctx) {
       message += "❌ No timetable data available.";
     }
 
-    ctx.replyWithMarkdown(message);
+    await ctx.replyWithMarkdown(message);
   } catch (error) {
     console.error(
       "Today's timetable error:",

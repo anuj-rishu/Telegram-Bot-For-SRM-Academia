@@ -9,11 +9,23 @@ async function handleMarks(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
+  if (!session || !session.token) {
+    return ctx.reply("You need to login first. Use /login command.");
+  }
+
   try {
+    await ctx.reply("Fetching your marks data...");
+
+    const loadingInterval = setInterval(() => {
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+    }, 3000);
+
     const response = await apiService.makeAuthenticatedRequest(
       "/marks",
       session
     );
+
+    clearInterval(loadingInterval);
 
     const marksData = response.data;
     let message = "🎓 *YOUR ACADEMIC MARKS*\n";
@@ -116,14 +128,12 @@ async function handleMarks(ctx) {
 
           message += `\n`;
         });
-
-        message += `━━━━━━━━━━━━━\n\n`;
       }
     } else {
       message = "🎓 *YOUR ACADEMIC MARKS*\n\n❌ No marks data available.";
     }
 
-    ctx.replyWithMarkdown(message);
+    await ctx.replyWithMarkdown(message);
   } catch (error) {
     console.error("Marks error:", error.response?.data || error.message);
     ctx.reply(
