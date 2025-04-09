@@ -136,9 +136,19 @@ class NotificationService {
       );
 
       if (response?.data?.attendance) {
-        const courseAttendance = response.data.attendance.find(
-          (course) => course.courseCode === classInfo.code
+        // First try to find an exact match for both course code and type
+        let courseAttendance = response.data.attendance.find(
+          (course) =>
+            course.courseCode === classInfo.code &&
+            course.courseType === classInfo.courseType
         );
+
+        // If no exact match, fall back to matching just by course code
+        if (!courseAttendance) {
+          courseAttendance = response.data.attendance.find(
+            (course) => course.courseCode === classInfo.code
+          );
+        }
 
         if (courseAttendance) {
           const hoursConducted = parseInt(courseAttendance.hoursConducted);
@@ -153,7 +163,11 @@ class NotificationService {
           else if (attendancePercentage >= 75) statusEmoji = "✳️";
           else if (attendancePercentage >= 60) statusEmoji = "⚠️";
 
-          attendanceInfo = `\n📊 *Attendance Status*\n${statusEmoji} *Current: ${attendancePercentage}%*`;
+          attendanceInfo = `\n📊 *Attendance Status${
+            courseAttendance.courseType
+              ? " (" + courseAttendance.courseType + ")"
+              : ""
+          }*\n${statusEmoji} *Current: ${attendancePercentage}%*`;
 
           if (attendancePercentage >= 75) {
             const skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);
