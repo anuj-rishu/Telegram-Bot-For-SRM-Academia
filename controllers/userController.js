@@ -17,7 +17,7 @@ async function handleUserInfo(ctx) {
     await ctx.reply("🔄 Fetching your profile...");
 
     const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing")
     }, 3000);
 
     const response = await apiService.makeAuthenticatedRequest(
