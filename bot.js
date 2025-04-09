@@ -13,7 +13,7 @@ const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
 
-//task notifiaction
+// Task notification
 const taskScene = require("./scenes/taskScene");
 const taskController = require("./controllers/taskController");
 const TaskNotificationService = require("./notification/taskNotification");
@@ -21,6 +21,20 @@ const TaskNotificationService = require("./notification/taskNotification");
 const CustomMessageService = require("./services/customMessageService");
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+
+// handle blocked users
+const originalSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
+bot.telegram.sendMessage = async (chatId, text, options = {}) => {
+  try {
+    return await originalSendMessage(chatId, text, options);
+  } catch (error) {
+    if (error.response && error.response.error_code === 403) {
+      console.warn(`🚫 User ${chatId} has blocked the bot.`);
+    } else {
+      console.error(`❌ Error sending message to ${chatId}:`, error);
+    }
+  }
+};
 
 const stage = new Scenes.Stage([loginScene, taskScene]);
 
@@ -56,7 +70,7 @@ new TaskNotificationService(bot);
 // Logout command
 bot.command("logout", requireLogin, authController.handleLogout);
 
-//custom message
+// Custom message service
 const messageService = new CustomMessageService(bot);
 bot.messageService = messageService;
 
@@ -80,19 +94,18 @@ bot.command(
 // Calendar command
 bot.command("calendar", requireLogin, calendarController.handleCalendar);
 
+// Marks command
 bot.command("marks", requireLogin, marksController.handleMarks);
 
-//task messages
+// Task-related commands
 bot.command("addtask", requireLogin, (ctx) => ctx.scene.enter("task"));
 bot.command("tasks", requireLogin, taskController.handleTasksList);
 bot.command("complete", requireLogin, taskController.handleCompleteTask);
-
 bot.command(
   "deletetasks",
   requireLogin,
   taskController.handleDeleteMultipleTasks
 );
-
 bot.action(
   /complete_task:.*|delete_multiple|selection:.*|confirm_multiple_selection|cancel_multiple_selection|confirm_delete_selected/,
   requireLogin,
