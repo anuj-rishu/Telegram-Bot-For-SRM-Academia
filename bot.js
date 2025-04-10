@@ -131,6 +131,8 @@ bot.help((ctx) => {
       "/marks - Check your marks\n" +
       "/timetable - Get your weekly timetable\n" +
       "/todaysclass - Get Todays Class\n" +
+      "/tomorrowclass - Get Tomorrows Class\n" +
+      "/dayafterclass  - Get Day After Tomorrows Class\n" +
       "/dayorder - Check today's day order and classes\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
