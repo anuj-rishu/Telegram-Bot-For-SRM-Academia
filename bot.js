@@ -90,6 +90,16 @@ bot.command(
   requireLogin,
   timetableController.handleTodayTimetable
 );
+bot.command(
+  "tomorrowclass",
+  requireLogin,
+  timetableController.handleTomorrowTimetable
+);
+bot.command(
+  "dayafterclass",
+  requireLogin,
+  timetableController.handleDayAfterTomorrowTimetable
+);
 
 // Calendar command
 bot.command("calendar", requireLogin, calendarController.handleCalendar);
