@@ -24,15 +24,29 @@ class NotificationService {
 
         console.log(`👥 Found ${userIds.length} users to notify`);
 
-        for (const userId of userIds) {
-          console.log(`🔄 Processing user ${userId}...`);
-          try {
-            await this.sendDailySchedule(userId);
-            console.log(`✅ Sent schedule to user ${userId}`);
-          } catch (error) {
-            console.error(`❌ Failed to notify user ${userId}:`, error.message);
+        const BATCH_SIZE = 10;
+
+        for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+          const batch = userIds.slice(i, i + BATCH_SIZE);
+          console.log(`🔄 Processing batch ${i / BATCH_SIZE + 1}...`);
+
+          await Promise.all(
+            batch.map(async (userId) => {
+              try {
+                await this.sendDailySchedule(userId);
+                console.log(`✅ Sent schedule to user ${userId}`);
+              } catch (error) {
+                console.error(
+                  `❌ Failed to notify user ${userId}:`,
+                  error.message
+                );
+              }
+            })
+          );
+
+          if (i + BATCH_SIZE < userIds.length) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
           }
-          await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
         this.sentNotifications.clear();
