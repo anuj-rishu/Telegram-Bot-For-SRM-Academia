@@ -321,8 +321,8 @@ class NotificationService {
       const headerMessage = [
         `🌟 *${greeting}!*`,
         `\n📅 *${date}*`,
-        `\n📚 *Your Classes for Today:*`,
         todayData.dayOrder ? `Day Order: ${todayData.dayOrder}` : `🎉 Holiday!`,
+        `\n📚 *Your Classes for Today:*`,
       ].join("\n");
 
       await this.bot.telegram.sendMessage(userId, headerMessage, {
