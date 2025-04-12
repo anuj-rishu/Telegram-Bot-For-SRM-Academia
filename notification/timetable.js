@@ -150,14 +150,12 @@ class NotificationService {
       );
 
       if (response?.data?.attendance) {
-        // First try to find an exact match for both course code and type
         let courseAttendance = response.data.attendance.find(
           (course) =>
             course.courseCode === classInfo.code &&
             course.courseType === classInfo.courseType
         );
 
-        // If no exact match, fall back to matching just by course code
         if (!courseAttendance) {
           courseAttendance = response.data.attendance.find(
             (course) => course.courseCode === classInfo.code
