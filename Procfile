@@ -1,1 +1,1 @@
-worker: node server.js
+worker: node --expose-gc server.js
