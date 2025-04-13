@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+
 const TaskSchema = new mongoose.Schema(
   {
     telegramId: {
@@ -18,6 +19,7 @@ const TaskSchema = new mongoose.Schema(
     dueDate: {
       type: Date,
       required: true,
+      index: true,
     },
     reminderMinutes: {
       type: Number,
@@ -26,6 +28,7 @@ const TaskSchema = new mongoose.Schema(
     isCompleted: {
       type: Boolean,
       default: false,
+      index: true,
     },
     reminderSent: {
       type: Boolean,
@@ -36,7 +39,11 @@ const TaskSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: false,
+  }
 );
+
+TaskSchema.index({ telegramId: 1, isCompleted: 1, dueDate: 1 });
 
 module.exports = mongoose.model("Task", TaskSchema);

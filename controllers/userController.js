@@ -48,10 +48,9 @@ async function handleUserInfo(ctx) {
 
     await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error("❌ User info error:", error.response?.data || error.message);
     ctx.reply(
       `⚠️ Error fetching user information: ${
-        error.response?.data?.error || error.message
+        error.response?.data?.error || error.message || "Unknown error"
       }`
     );
   }

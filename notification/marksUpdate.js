@@ -3,22 +3,19 @@ const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 
 class MarksNotificationService {
-    constructor(bot) {
+  constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
-    console.log("✅ Marks notification service initialized");
-    
+
     this.loadNotifiedUpdatesFromDB();
-    
+
     setTimeout(() => this.checkMarksUpdates(), 10000);
-    setInterval(() => this.checkMarksUpdates(), 5 * 60 * 1000); // Changed from 1 min to 5 min
-    
+    setInterval(() => this.checkMarksUpdates(), 5 * 60 * 1000); //
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
   async loadNotifiedUpdatesFromDB() {
     try {
-      console.log("Loading notified marks updates from database...");
       const users = await User.find({
         notifiedMarksUpdates: { $exists: true },
       });
@@ -35,32 +32,19 @@ class MarksNotificationService {
           });
         }
       }
-
-      console.log(
-        `Loaded ${this.notifiedUpdates.size} previously notified marks updates`
-      );
-    } catch (error) {
-      console.error("Error loading notified marks updates from database:", error);
-    }
+    } catch (error) {}
   }
 
   async checkMarksUpdates() {
     try {
-      console.log("🔄 Checking for marks updates...");
       const users = await User.find({
         token: { $exists: true },
         marks: { $exists: true },
       });
 
-      console.log(`Found ${users.length} users with marks data`);
-
       for (const user of users) {
-        console.log(`Processing marks for user ${user.telegramId}`);
         const session = sessionManager.getSession(user.telegramId);
-        if (!session) {
-          console.log(`No active session found for user ${user.telegramId}`);
-          continue;
-        }
+        if (!session) continue;
 
         const response = await apiService.makeAuthenticatedRequest(
           "/marks",
@@ -68,18 +52,9 @@ class MarksNotificationService {
         );
         const newMarksData = response.data;
 
-        if (!newMarksData?.marks) {
-          console.log(
-            `No marks data in API response for user ${user.telegramId}`
-          );
-          continue;
-        }
+        if (!newMarksData?.marks) continue;
 
-        console.log(`Comparing marks data for user ${user.telegramId}`);
         const updatedCourses = this.compareMarks(user.marks, newMarksData);
-        console.log(
-          `Found ${updatedCourses.length} updated courses for user ${user.telegramId}`
-        );
 
         if (updatedCourses.length > 0) {
           const newUpdates = this.filterAlreadyNotifiedUpdates(
@@ -88,35 +63,18 @@ class MarksNotificationService {
           );
 
           if (newUpdates.length > 0) {
-            console.log(
-              `Sending marks notification to user ${user.telegramId} for ${newUpdates.length} new changes`
-            );
-            await this.sendMarksUpdateNotification(
-              user.telegramId,
-              newUpdates
-            );
-
+            await this.sendMarksUpdateNotification(user.telegramId, newUpdates);
             this.markUpdatesAsNotified(user.telegramId, newUpdates);
-
             await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
-          } else {
-            console.log(
-              `All updates for user ${user.telegramId} already notified, skipping notification`
-            );
           }
 
           await User.findByIdAndUpdate(user._id, {
             marks: newMarksData,
             lastMarksUpdate: new Date(),
           });
-          console.log(
-            `Updated marks data in database for user ${user.telegramId}`
-          );
         }
       }
-    } catch (error) {
-      console.error("Error in marks update check:", error);
-    }
+    } catch (error) {}
   }
 
   generateUpdateIdentifier(telegramId, update) {
@@ -137,9 +95,10 @@ class MarksNotificationService {
   }
 
   markUpdatesAsNotified(telegramId, updates) {
+    const now = Date.now();
     updates.forEach((update) => {
       const updateId = this.generateUpdateIdentifier(telegramId, update);
-      this.notifiedUpdates.set(updateId, Date.now());
+      this.notifiedUpdates.set(updateId, now);
     });
   }
 
@@ -149,12 +108,13 @@ class MarksNotificationService {
       if (!user) return;
 
       const notifiedUpdates = user.notifiedMarksUpdates || [];
+      const now = Date.now();
 
       newUpdates.forEach((update) => {
         const updateId = this.generateUpdateIdentifier(telegramId, update);
         notifiedUpdates.push({
           id: updateId,
-          timestamp: Date.now(),
+          timestamp: now,
           courseName: update.courseName,
           type: update.type,
           testName: update.testName || null,
@@ -167,16 +127,7 @@ class MarksNotificationService {
       await User.findByIdAndUpdate(user._id, {
         notifiedMarksUpdates: updatesToStore,
       });
-
-      console.log(
-        `Saved ${newUpdates.length} notified marks updates to database for user ${telegramId}`
-      );
-    } catch (error) {
-      console.error(
-        `Error saving notified marks updates to database for user ${telegramId}:`,
-        error
-      );
-    }
+    } catch (error) {}
   }
 
   compareMarks(oldMarks, newMarks) {
@@ -184,7 +135,7 @@ class MarksNotificationService {
 
     if (!oldMarks?.marks || !newMarks?.marks) return updatedCourses;
 
-    newMarks.marks.forEach((newCourse) => {
+    for (const newCourse of newMarks.marks) {
       const oldCourse = oldMarks.marks.find(
         (c) => c.courseName === newCourse.courseName
       );
@@ -198,7 +149,7 @@ class MarksNotificationService {
             old: null,
           });
         }
-        return;
+        continue;
       }
 
       if (
@@ -216,7 +167,7 @@ class MarksNotificationService {
       }
 
       if (newCourse.testPerformance) {
-        newCourse.testPerformance.forEach((newTest) => {
+        for (const newTest of newCourse.testPerformance) {
           const oldTest = oldCourse.testPerformance?.find(
             (t) => t.test === newTest.test
           );
@@ -230,9 +181,9 @@ class MarksNotificationService {
               old: oldTest?.marks || null,
             });
           }
-        });
+        }
       }
-    });
+    }
 
     return updatedCourses;
   }
@@ -261,7 +212,7 @@ class MarksNotificationService {
   async sendMarksUpdateNotification(telegramId, updatedCourses) {
     let message = "🔔 *Marks Update Alert!*\n\n";
 
-    updatedCourses.forEach((update) => {
+    for (const update of updatedCourses) {
       message += `📚 *${update.courseName}*\n`;
 
       if (update.type === "test") {
@@ -299,17 +250,14 @@ class MarksNotificationService {
         }
       }
       message += `\n`;
-    });
+    }
 
     try {
       await this.bot.telegram.sendMessage(telegramId, message, {
         parse_mode: "Markdown",
         disable_notification: false,
       });
-      console.log(`✅ Successfully sent marks notification to user ${telegramId}`);
-    } catch (error) {
-      console.error(`❌ Failed to send marks notification:`, error);
-    }
+    } catch (error) {}
   }
 
   cleanupOldNotifications() {
@@ -321,7 +269,6 @@ class MarksNotificationService {
         this.notifiedUpdates.delete(updateId);
       }
     }
-    console.log("Cleaned up old marks notifications");
   }
 }
 

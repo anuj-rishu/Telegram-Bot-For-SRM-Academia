@@ -3,22 +3,18 @@ const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 
 class AttendanceNotificationService {
-    constructor(bot) {
+  constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
-    console.log("✅ Attendance notification service initialized");
-  
+
     this.loadNotifiedUpdatesFromDB();
-  
     setTimeout(() => this.checkAttendanceUpdates(), 10000);
-    setInterval(() => this.checkAttendanceUpdates(), 5 * 60 * 1000); // Changed from 1 min to 5 min
-  
+    setInterval(() => this.checkAttendanceUpdates(), 5 * 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
   async loadNotifiedUpdatesFromDB() {
     try {
-      console.log("Loading notified updates from database...");
       const users = await User.find({
         notifiedAttendanceUpdates: { $exists: true },
       });
@@ -35,32 +31,19 @@ class AttendanceNotificationService {
           });
         }
       }
-
-      console.log(
-        `Loaded ${this.notifiedUpdates.size} previously notified updates`
-      );
-    } catch (error) {
-      console.error("Error loading notified updates from database:", error);
-    }
+    } catch (error) {}
   }
 
   async checkAttendanceUpdates() {
     try {
-      console.log("🔄 Checking for attendance updates...");
       const users = await User.find({
         token: { $exists: true },
         attendance: { $exists: true },
       });
 
-      console.log(`Found ${users.length} users with attendance data`);
-
       for (const user of users) {
-        console.log(`Processing attendance for user ${user.telegramId}`);
         const session = sessionManager.getSession(user.telegramId);
-        if (!session) {
-          console.log(`No active session found for user ${user.telegramId}`);
-          continue;
-        }
+        if (!session) continue;
 
         const response = await apiService.makeAuthenticatedRequest(
           "/attendance",
@@ -68,20 +51,11 @@ class AttendanceNotificationService {
         );
         const newAttendanceData = response.data;
 
-        if (!newAttendanceData?.attendance) {
-          console.log(
-            `No attendance data in API response for user ${user.telegramId}`
-          );
-          continue;
-        }
+        if (!newAttendanceData?.attendance) continue;
 
-        console.log(`Comparing attendance data for user ${user.telegramId}`);
         const updatedCourses = this.compareAttendance(
           user.attendance,
           newAttendanceData
-        );
-        console.log(
-          `Found ${updatedCourses.length} updated courses for user ${user.telegramId}`
         );
 
         if (updatedCourses.length > 0) {
@@ -94,40 +68,22 @@ class AttendanceNotificationService {
             );
 
             if (newUpdates.length > 0) {
-              console.log(
-                `Sending attendance notification to user ${user.telegramId} for ${newUpdates.length} new changes`
-              );
               await this.sendAttendanceUpdateNotification(
                 user.telegramId,
                 newUpdates
               );
-
               this.markUpdatesAsNotified(user.telegramId, newUpdates);
-
               await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
-            } else {
-              console.log(
-                `All updates for user ${user.telegramId} already notified, skipping notification`
-              );
             }
-          } else {
-            console.log(
-              `No significant changes for user ${user.telegramId}, skipping notification`
-            );
           }
 
           await User.findByIdAndUpdate(user._id, {
             attendance: newAttendanceData,
             lastAttendanceUpdate: new Date(),
           });
-          console.log(
-            `Updated attendance data in database for user ${user.telegramId}`
-          );
         }
       }
-    } catch (error) {
-      console.error("Error in attendance update check:", error);
-    }
+    } catch (error) {}
   }
 
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
@@ -136,6 +92,7 @@ class AttendanceNotificationService {
       if (!user) return;
 
       const notifiedUpdates = user.notifiedAttendanceUpdates || [];
+      const now = Date.now();
 
       newUpdates.forEach((update) => {
         const updateId = this.generateUpdateIdentifier(
@@ -145,7 +102,7 @@ class AttendanceNotificationService {
         );
         notifiedUpdates.push({
           id: updateId,
-          timestamp: Date.now(),
+          timestamp: now,
           courseTitle: update.new.courseTitle,
           category: update.new.category,
           type: update.type,
@@ -158,16 +115,7 @@ class AttendanceNotificationService {
       await User.findByIdAndUpdate(user._id, {
         notifiedAttendanceUpdates: updatesToStore,
       });
-
-      console.log(
-        `Saved ${newUpdates.length} notified updates to database for user ${telegramId}`
-      );
-    } catch (error) {
-      console.error(
-        `Error saving notified updates to database for user ${telegramId}:`,
-        error
-      );
-    }
+    } catch (error) {}
   }
 
   generateUpdateIdentifier(telegramId, course, type) {
@@ -182,20 +130,19 @@ class AttendanceNotificationService {
         update.new,
         update.type
       );
-
       return !this.notifiedUpdates.has(updateId);
     });
   }
 
   markUpdatesAsNotified(telegramId, updates) {
+    const now = Date.now();
     updates.forEach((update) => {
       const updateId = this.generateUpdateIdentifier(
         telegramId,
         update.new,
         update.type
       );
-
-      this.notifiedUpdates.set(updateId, Date.now());
+      this.notifiedUpdates.set(updateId, now);
     });
   }
 
@@ -204,7 +151,7 @@ class AttendanceNotificationService {
 
     if (!oldData?.attendance || !newData?.attendance) return updatedCourses;
 
-    newData.attendance.forEach((newCourse) => {
+    for (const newCourse of newData.attendance) {
       const oldCourse = oldData.attendance.find(
         (c) =>
           c.courseTitle === newCourse.courseTitle &&
@@ -212,6 +159,7 @@ class AttendanceNotificationService {
       );
 
       if (!oldCourse) {
+        // New course added
         if (this.hasValidAttendance(newCourse)) {
           updatedCourses.push({
             courseName: newCourse.courseTitle,
@@ -220,7 +168,7 @@ class AttendanceNotificationService {
             old: null,
           });
         }
-        return;
+        continue;
       }
 
       if (this.attendanceChanged(newCourse, oldCourse)) {
@@ -231,7 +179,7 @@ class AttendanceNotificationService {
           old: oldCourse,
         });
       }
-    });
+    }
 
     return updatedCourses;
   }
@@ -293,16 +241,11 @@ class AttendanceNotificationService {
       );
     });
 
-    if (coursesWithChanges.length === 0) {
-      console.log(
-        `No courses with actual changes for user ${telegramId}, skipping notification`
-      );
-      return;
-    }
+    if (coursesWithChanges.length === 0) return;
 
     let message = "🔔 *Attendance Update Alert!*\n\n";
 
-    coursesWithChanges.forEach((update) => {
+    for (const update of coursesWithChanges) {
       const hoursConducted = parseInt(update.new.hoursConducted);
       const hoursAbsent = parseInt(update.new.hoursAbsent);
       const hoursPresent = hoursConducted - hoursAbsent;
@@ -346,22 +289,14 @@ class AttendanceNotificationService {
       }
 
       message += "\n";
-    });
+    }
 
     try {
       await this.bot.telegram.sendMessage(telegramId, message, {
         parse_mode: "Markdown",
         disable_notification: false,
       });
-      console.log(
-        `✅ Successfully sent attendance notification to user ${telegramId}`
-      );
-    } catch (error) {
-      console.error(
-        `❌ Failed to send attendance notification to user ${telegramId}:`,
-        error
-      );
-    }
+    } catch (error) {}
   }
 
   cleanupOldNotifications() {

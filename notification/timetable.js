@@ -9,38 +9,24 @@ class NotificationService {
     this.processingUsers = new Set();
     this.scheduleNotifications();
     this.scheduleClassReminders();
-    console.log("🔔 Notification service initialized");
   }
 
   scheduleNotifications() {
     schedule.scheduleJob("01 07 * * *", async () => {
       try {
-        console.log("📅 Starting daily schedule notification...");
-        const debugInfo = sessionManager.debug();
-        console.log("📊 Session Debug:", debugInfo);
-
         const sessions = sessionManager.getAllSessions();
         const userIds = Object.keys(sessions);
-
-        console.log(`👥 Found ${userIds.length} users to notify`);
 
         const BATCH_SIZE = 10;
 
         for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
           const batch = userIds.slice(i, i + BATCH_SIZE);
-          console.log(`🔄 Processing batch ${i / BATCH_SIZE + 1}...`);
 
           await Promise.all(
             batch.map(async (userId) => {
               try {
                 await this.sendDailySchedule(userId);
-                console.log(`✅ Sent schedule to user ${userId}`);
-              } catch (error) {
-                console.error(
-                  `❌ Failed to notify user ${userId}:`,
-                  error.message
-                );
-              }
+              } catch (error) {}
             })
           );
 
@@ -50,22 +36,17 @@ class NotificationService {
         }
 
         this.sentNotifications.clear();
-      } catch (error) {
-        console.error("❌ Daily notification error:", error.message);
-      }
+      } catch (error) {}
     });
   }
 
   scheduleClassReminders() {
-    console.log("🔔 Scheduling class reminders...");
     schedule.scheduleJob("* * * * *", async () => {
       try {
-        console.log("🔔 Checking for upcoming classes...");
         const sessions = sessionManager.getAllSessions();
 
         for (const userId of Object.keys(sessions)) {
           if (this.processingUsers.has(userId)) {
-            console.log(`⏭️ Already processing user ${userId}, skipping`);
             continue;
           }
 
@@ -79,9 +60,7 @@ class NotificationService {
 
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
-      } catch (error) {
-        console.error("❌ Class reminder error:", error.message);
-      }
+      } catch (error) {}
     });
   }
 
@@ -111,15 +90,7 @@ class NotificationService {
           await this.sendUrgentClassReminderOnce(userId, classInfo, 5);
         }
       }
-    } catch (error) {
-      console.error(
-        `❌ Error checking classes for user ${userId}:`,
-        error.message
-      );
-      if (error.response) {
-        console.error("Response status:", error.response.status);
-      }
-    }
+    } catch (error) {}
   }
 
   createNotificationKey(userId, classInfo, timeframe) {
@@ -198,12 +169,7 @@ class NotificationService {
           }
         }
       }
-    } catch (error) {
-      console.error(
-        `Failed to fetch attendance for class ${classInfo.code}:`,
-        error.message
-      );
-    }
+    } catch (error) {}
 
     const message = [
       `${urgencyEmoji} *Class Starting in ${timeText}!*`,
@@ -220,16 +186,7 @@ class NotificationService {
       });
 
       this.sentNotifications.set(notificationKey, new Date());
-
-      console.log(
-        `✅ Sent ${timeText} reminder to user ${userId} for ${classInfo.name}`
-      );
-    } catch (error) {
-      console.error(
-        `❌ Failed to send class reminder to user ${userId}:`,
-        error.message
-      );
-    }
+    } catch (error) {}
   }
 
   async sendHourlyClassReminder(userId, classInfo, hours) {
@@ -259,15 +216,7 @@ class NotificationService {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-      console.log(
-        `✅ Sent ${hours}-hour reminder to user ${userId} for ${classInfo.name}`
-      );
-    } catch (error) {
-      console.error(
-        `❌ Failed to send class reminder to user ${userId}:`,
-        error.message
-      );
-    }
+    } catch (error) {}
   }
 
   getDayGreeting() {
@@ -292,12 +241,10 @@ class NotificationService {
 
     const session = sessionManager.getSession(userId);
     if (!session) {
-      console.log(`⚠️ No active session for user ${userId}`);
       return;
     }
 
     if (!session.token || !session.csrfToken) {
-      console.error(`🔑 Invalid session data for user ${userId}`);
       return;
     }
 
@@ -308,7 +255,6 @@ class NotificationService {
       );
 
       if (!response?.data || response.data.error) {
-        console.log(`⚠️ Invalid response for user ${userId}`);
         return;
       }
 
@@ -358,12 +304,7 @@ class NotificationService {
           }
         );
       }
-    } catch (error) {
-      console.error(
-        `❌ Error sending daily schedule to user ${userId}:`,
-        error.message
-      );
-    }
+    } catch (error) {}
   }
 
   convertTimeToMinutes(timeStr) {

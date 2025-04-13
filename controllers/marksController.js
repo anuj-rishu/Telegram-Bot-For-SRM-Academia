@@ -27,23 +27,26 @@ async function handleMarks(ctx) {
 
     clearInterval(loadingInterval);
 
+    if (!response || !response.data) {
+      return ctx.reply("Unable to fetch marks data. Please try again later.");
+    }
+
     const marksData = response.data;
     let message = "🎓 *YOUR ACADEMIC MARKS*\n";
 
-    if (marksData && marksData.marks && marksData.marks.length > 0) {
+    if (marksData?.marks?.length > 0) {
       const coursesWithMarks = marksData.marks.filter(
         (course) => course.overall && parseFloat(course.overall.total) > 0
       );
 
       if (coursesWithMarks.length > 0) {
-        const totalScored = coursesWithMarks.reduce(
-          (sum, course) => sum + parseFloat(course.overall.scored),
-          0
-        );
-        const totalPossible = coursesWithMarks.reduce(
-          (sum, course) => sum + parseFloat(course.overall.total),
-          0
-        );
+        let totalScored = 0;
+        let totalPossible = 0;
+
+        for (const course of coursesWithMarks) {
+          totalScored += parseFloat(course.overall.scored);
+          totalPossible += parseFloat(course.overall.total);
+        }
 
         const overallPercentage =
           totalPossible > 0
@@ -62,18 +65,18 @@ async function handleMarks(ctx) {
 
       const coursesByType = {};
 
-      marksData.marks.forEach((course) => {
+      for (const course of marksData.marks) {
         const type = course.courseType || "Other";
         if (!coursesByType[type]) {
           coursesByType[type] = [];
         }
         coursesByType[type].push(course);
-      });
+      }
 
       for (const type in coursesByType) {
         message += `📚*${type.toUpperCase()} COURSES*\n\n`;
 
-        coursesByType[type].forEach((course) => {
+        for (const course of coursesByType[type]) {
           message += `📚 *${course.courseName}*\n`;
 
           if (
@@ -81,13 +84,12 @@ async function handleMarks(ctx) {
             (parseFloat(course.overall.scored) > 0 ||
               parseFloat(course.overall.total) > 0)
           ) {
+            const overallTotal = parseFloat(course.overall.total);
+            const overallScored = parseFloat(course.overall.scored);
+
             const coursePercentage =
-              parseFloat(course.overall.total) > 0
-                ? (
-                    (parseFloat(course.overall.scored) /
-                      parseFloat(course.overall.total)) *
-                    100
-                  ).toFixed(1)
+              overallTotal > 0
+                ? ((overallScored / overallTotal) * 100).toFixed(1)
                 : 0;
 
             let courseEmoji = "❌";
@@ -98,17 +100,15 @@ async function handleMarks(ctx) {
             message += `${courseEmoji} *Overall:* ${course.overall.scored}/${course.overall.total} (${coursePercentage}%)\n`;
           }
 
-          if (course.testPerformance && course.testPerformance.length > 0) {
+          if (course.testPerformance?.length > 0) {
             message += `✏️ *Tests:*\n`;
-            course.testPerformance.forEach((test) => {
+
+            for (const test of course.testPerformance) {
+              const testTotal = parseFloat(test.marks.total);
+              const testScored = parseFloat(test.marks.scored);
+
               const testPercentage =
-                parseFloat(test.marks.total) > 0
-                  ? (
-                      (parseFloat(test.marks.scored) /
-                        parseFloat(test.marks.total)) *
-                      100
-                    ).toFixed(1)
-                  : 0;
+                testTotal > 0 ? ((testScored / testTotal) * 100).toFixed(1) : 0;
 
               let testEmoji = "❔";
               if (testPercentage >= 90) testEmoji = "✅";
@@ -117,7 +117,7 @@ async function handleMarks(ctx) {
               else testEmoji = "❌";
 
               message += `╰┈➤ ${testEmoji} ${test.test}: ${test.marks.scored}/${test.marks.total}\n`;
-            });
+            }
           } else if (
             !course.overall ||
             (parseFloat(course.overall.scored) === 0 &&
@@ -127,7 +127,7 @@ async function handleMarks(ctx) {
           }
 
           message += `\n`;
-        });
+        }
       }
     } else {
       message = "🎓 *YOUR ACADEMIC MARKS*\n\n❌ No marks data available.";
@@ -135,10 +135,9 @@ async function handleMarks(ctx) {
 
     await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error("Marks error:", error.response?.data || error.message);
     ctx.reply(
       `Error fetching marks data: ${
-        error.response?.data?.error || error.message
+        error.response?.data?.error || error.message || "Unknown error"
       }`
     );
   }

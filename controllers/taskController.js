@@ -22,21 +22,22 @@ async function handleTasksList(ctx) {
     }
 
     let message = "📋 *Your Tasks*\n\n";
+    const buttons = [];
+    const now = moment();
 
-    tasks.forEach((task, index) => {
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
       const dueDate = moment(task.dueDate);
-      const isOverdue = dueDate.isBefore(moment());
+      const isOverdue = dueDate.isBefore(now);
       const dueDateFormatted = dueDate.format("MMM D, YYYY [at] h:mm A");
 
-      message += `${index + 1}. ${isOverdue ? "⚠️ " : ""}*${task.taskName}*\n`;
+      message += `${i + 1}. ${isOverdue ? "⚠️ " : ""}*${task.taskName}*\n`;
       if (task.description) {
         message += `   ${task.description}\n`;
       }
       message += `   📅 Due: ${dueDateFormatted}\n`;
-    });
 
-    const buttons = tasks.map((task) => {
-      return [
+      buttons.push([
         Markup.button.callback(
           `✅ Complete: ${task.taskName.substring(0, 20)}`,
           `complete_task:${task._id}`
@@ -45,8 +46,8 @@ async function handleTasksList(ctx) {
           `🗑️ Delete: ${task.taskName.substring(0, 20)}`,
           `delete_multiple`
         ),
-      ];
-    });
+      ]);
+    }
 
     buttons.push([
       Markup.button.callback("🗑️ Delete Tasks", "delete_multiple"),
@@ -54,7 +55,6 @@ async function handleTasksList(ctx) {
 
     await ctx.replyWithMarkdown(message, Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error fetching tasks:", error);
     ctx.reply("❌ Error fetching your tasks. Please try again.");
   }
 }
@@ -72,21 +72,18 @@ async function handleCompleteTask(ctx) {
   }
 
   try {
-    const task = await Task.findOne({
-      _id: taskId,
-      telegramId: userId,
-    });
+    const task = await Task.findOneAndUpdate(
+      { _id: taskId, telegramId: userId },
+      { isCompleted: true },
+      { new: true }
+    );
 
     if (!task) {
       return ctx.reply("❌ Task not found. Please check the ID and try again.");
     }
 
-    task.isCompleted = true;
-    await task.save();
-
     ctx.reply(`✅ Task "${task.taskName}" marked as complete!`);
   } catch (error) {
-    console.error("Error completing task:", error);
     ctx.reply(
       "❌ Error completing the task. Please check the ID and try again."
     );
@@ -111,18 +108,16 @@ async function showTasksForCompletion(ctx) {
     }
 
     const message = "Select a task to mark as complete:";
-    const buttons = tasks.map((task) => {
-      return [
-        Markup.button.callback(
-          `${task.taskName.substring(0, 30)}`,
-          `complete_task:${task._id}`
-        ),
-      ];
-    });
+    const buttons = tasks.map((task) => [
+      Markup.button.callback(
+        `${task.taskName.substring(0, 30)}`,
+        `complete_task:${task._id}`
+      ),
+    ]);
 
     await ctx.reply(message, Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error fetching tasks for completion:", error);
+    // Removed console.error to reduce CPU usage
     ctx.reply("❌ Error fetching your tasks. Please try again.");
   }
 }
@@ -153,12 +148,13 @@ async function showTasksForMultipleSelection(ctx) {
     }
 
     let message = "Select tasks to delete:\n\n";
-    tasks.forEach((task, index) => {
-      message += `${index + 1}. ${task.taskName}\n`;
-    });
 
     if (!ctx.session.selectedTasks) {
       ctx.session.selectedTasks = {};
+    }
+
+    for (let i = 0; i < tasks.length; i++) {
+      message += `${i + 1}. ${tasks[i].taskName}\n`;
     }
 
     const buttons = tasks.map((task) => {
@@ -183,7 +179,6 @@ async function showTasksForMultipleSelection(ctx) {
 
     await ctx.reply(message, Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error preparing multiple selection:", error);
     ctx.reply("❌ Error preparing tasks for selection. Please try again.");
   }
 }
@@ -199,18 +194,16 @@ async function handleTaskCallbacks(ctx) {
 
     if (callbackData.startsWith("complete_task:")) {
       const taskId = callbackData.split(":")[1];
-      const task = await Task.findOne({
-        _id: taskId,
-        telegramId: userId,
-      });
+      const task = await Task.findOneAndUpdate(
+        { _id: taskId, telegramId: userId },
+        { isCompleted: true },
+        { new: true }
+      );
 
       if (!task) {
         await ctx.answerCbQuery("Task not found.");
         return;
       }
-
-      task.isCompleted = true;
-      await task.save();
 
       await ctx.answerCbQuery("Task marked as complete!");
       await ctx.editMessageText(
@@ -235,9 +228,10 @@ async function handleTaskCallbacks(ctx) {
       }).sort({ dueDate: 1 });
 
       let message = "Select tasks to delete:\n\n";
-      tasks.forEach((task, index) => {
-        message += `${index + 1}. ${task.taskName}\n`;
-      });
+
+      for (let i = 0; i < tasks.length; i++) {
+        message += `${i + 1}. ${tasks[i].taskName}\n`;
+      }
 
       const buttons = tasks.map((task) => {
         const id = task._id.toString();
@@ -281,9 +275,10 @@ async function handleTaskCallbacks(ctx) {
       });
 
       let message = `Are you sure you want to delete these ${selectedTasks.length} tasks?\n\n`;
-      selectedTasks.forEach((task, index) => {
-        message += `${index + 1}. ${task.taskName}\n`;
-      });
+
+      for (let i = 0; i < selectedTasks.length; i++) {
+        message += `${i + 1}. ${selectedTasks[i].taskName}\n`;
+      }
 
       const buttons = [
         [
@@ -327,7 +322,6 @@ async function handleTaskCallbacks(ctx) {
       );
     }
   } catch (error) {
-    console.error("Error handling task callback:", error);
     await ctx.answerCbQuery("An error occurred. Please try again.");
   }
 }

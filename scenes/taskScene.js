@@ -9,9 +9,7 @@ const taskScene = new Scenes.WizardScene(
 
   async (ctx) => {
     ctx.wizard.state.task = {};
-
     await ctx.reply("Please enter a name for your task:", cancelKeyboard);
-
     return ctx.wizard.next();
   },
 
@@ -55,7 +53,6 @@ const taskScene = new Scenes.WizardScene(
     }
 
     await ctx.reply("📆 Select a date:", await getCalendarKeyboard(moment()));
-
     return ctx.wizard.next();
   },
 
@@ -117,9 +114,7 @@ const taskScene = new Scenes.WizardScene(
 
         await ctx.answerCbQuery();
         await ctx.editMessageReplyMarkup(
-          (
-            await getCalendarKeyboard(date)
-          ).reply_markup
+          (await getCalendarKeyboard(date)).reply_markup
         );
         return;
       }
@@ -187,7 +182,6 @@ const taskScene = new Scenes.WizardScene(
         Markup.button.callback("2 hours", "reminder:120"),
         Markup.button.callback("2:30 hours", "reminder:150"),
       ],
-
       [Markup.button.callback("Custom time", "reminder:custom")],
     ]);
 
@@ -306,7 +300,6 @@ const taskScene = new Scenes.WizardScene(
 
       return ctx.scene.leave();
     } catch (error) {
-      console.error("Error saving task:", error);
       await ctx.reply(
         "❌ Error creating task. Please try again.",
         Markup.removeKeyboard()
@@ -326,6 +319,7 @@ async function getCalendarKeyboard(date) {
 
   let keyboard = [];
 
+
   keyboard.push([
     Markup.button.callback(
       "◀️",
@@ -337,6 +331,7 @@ async function getCalendarKeyboard(date) {
       `calendar:nav:next:${date.format("YYYY-MM-DD")}`
     ),
   ]);
+
 
   keyboard.push(
     ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) =>
@@ -350,6 +345,7 @@ async function getCalendarKeyboard(date) {
   for (let i = 0; i < firstDay; i++) {
     days.push(Markup.button.callback(" ", "calendar:empty"));
   }
+
 
   while (dayCount <= daysInMonth) {
     days.push(
@@ -369,11 +365,11 @@ async function getCalendarKeyboard(date) {
     dayCount++;
   }
 
+
   while (days.length > 0 && days.length < 7) {
     days.push(Markup.button.callback(" ", "calendar:empty"));
     if (days.length === 7) {
       keyboard.push(days);
-      days = [];
     }
   }
 

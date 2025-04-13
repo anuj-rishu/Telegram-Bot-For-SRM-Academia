@@ -1,5 +1,16 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const winston = require("winston");
+
+const logger = winston.createLogger({
+  level: process.env.NODE_ENV === "production" ? "error" : "info",
+  format: winston.format.simple(),
+  transports: [
+    new winston.transports.Console({
+      handleExceptions: true,
+    }),
+  ],
+});
 
 /**
  * Handle attendance command
@@ -37,12 +48,7 @@ async function handleAttendance(ctx) {
     let message = "📊 *YOUR ATTENDANCE SUMMARY*\n";
 
     try {
-      if (
-        attendanceData &&
-        attendanceData.attendance &&
-        Array.isArray(attendanceData.attendance) &&
-        attendanceData.attendance.length > 0
-      ) {
+      if (attendanceData?.attendance?.length > 0) {
         let totalClasses = 0;
         let totalAbsent = 0;
 
@@ -119,7 +125,7 @@ async function handleAttendance(ctx) {
         message = "❌ *No attendance data available.*";
       }
     } catch (processingError) {
-      console.error("Error processing attendance data:", processingError);
+      logger.error("Error processing attendance data:", processingError);
       return ctx.reply(
         "Error processing your attendance data. Please try again later."
       );
@@ -127,7 +133,7 @@ async function handleAttendance(ctx) {
 
     await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error("Attendance error:", error.response?.data || error.message);
+    logger.error("Attendance error:", error.response?.data || error.message);
     ctx.reply(
       `Error fetching attendance data: ${
         error.response?.data?.error || error.message || "Unknown error"

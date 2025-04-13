@@ -1,26 +1,22 @@
-const User = require('../model/user');
+const User = require("../model/user");
 const sessions = new Map();
 
 const sessionManager = {
   async initializeSessions() {
     try {
       const users = await User.find({ token: { $exists: true } });
-      users.forEach(user => {
+      users.forEach((user) => {
         if (user.token) {
           sessions.set(String(user.telegramId), {
             token: user.token,
-            csrfToken: user.token
+            csrfToken: user.token,
           });
         }
       });
-      console.log(`✅ Initialized ${users.length} sessions from database`);
-    } catch (error) {
-      console.error('❌ Error initializing sessions:', error);
-    }
+    } catch (error) {}
   },
 
   async setSession(userId, sessionData) {
-    // Convert userId to string to ensure consistent keys
     sessions.set(String(userId), sessionData);
     try {
       await User.findOneAndUpdate(
@@ -28,18 +24,13 @@ const sessionManager = {
         { token: sessionData.token },
         { upsert: true }
       );
-      console.log(`✅ Session set and persisted for user ${userId}`);
-    } catch (error) {
-      console.error(`❌ Error persisting session for user ${userId}:`, error);
-    }
+    } catch (error) {}
   },
-  
+
   getSession(userId) {
-    const session = sessions.get(String(userId));
-    console.log(`Getting session for user ${userId}: ${session ? 'Found' : 'Not found'}`);
-    return session;
+    return sessions.get(String(userId));
   },
-  
+
   async deleteSession(userId) {
     try {
       await User.findOneAndUpdate(
@@ -48,7 +39,7 @@ const sessionManager = {
       );
       return sessions.delete(String(userId));
     } catch (error) {
-      console.error(`❌ Error deleting session for user ${userId}:`, error);
+      return false;
     }
   },
 
@@ -63,9 +54,9 @@ const sessionManager = {
   debug() {
     return {
       count: sessions.size,
-      users: Array.from(sessions.keys())
+      users: Array.from(sessions.keys()),
     };
-  }
+  },
 };
 
 module.exports = sessionManager;

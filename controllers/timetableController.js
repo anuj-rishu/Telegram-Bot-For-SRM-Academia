@@ -20,80 +20,61 @@ async function handleTimetable(ctx) {
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
     }, 3000);
 
-    const calendarResponse = await apiService.makeAuthenticatedRequest(
-      "/calendar",
-      session
-    );
-    const dayOrder = calendarResponse.data.today.dayOrder;
-
-    const response = await apiService.makeAuthenticatedRequest(
-      "/timetable",
-      session
-    );
+    const [calendarResponse, response] = await Promise.all([
+      apiService.makeAuthenticatedRequest("/calendar", session),
+      apiService.makeAuthenticatedRequest("/timetable", session),
+    ]);
 
     clearInterval(loadingInterval);
 
+    const dayOrder = calendarResponse.data.today.dayOrder;
     const timetableData = response.data;
 
     let message = "📋 *Complete Timetable*\n\n";
-
-    if (timetableData.regNumber) {
-      // message += `👤 *Registration Number:* ${timetableData.regNumber}\n`;
-      // message += `🎓 *Batch:* ${timetableData.batch}\n\n`;
-      // message += `━━━━━━━━━━━━━━━━━━\n\n`;
-    }
 
     if (
       timetableData &&
       timetableData.schedule &&
       timetableData.schedule.length > 0
     ) {
-      timetableData.schedule.forEach((daySchedule) => {
+      for (let i = 0; i < timetableData.schedule.length; i++) {
+        const daySchedule = timetableData.schedule[i];
         message += `📌 *Day ${daySchedule.day}*\n`;
         message += `━━━━━━━━━━━━━━━━━━\n`;
 
         let hasClasses = false;
 
-        daySchedule.table.forEach((slot) => {
+        for (let j = 0; j < daySchedule.table.length; j++) {
+          const slot = daySchedule.table[j];
           if (slot) {
             hasClasses = true;
             message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
-            // Fixed the erroneous asterisk
             message += `📚 ${slot.name} (${slot.courseType})\n`;
-            message += `🏛 Room: ${slot.roomNo}\n`;
-
-            message += `\n`;
+            message += `🏛 Room: ${slot.roomNo}\n\n`;
           }
-        });
+        }
 
         if (!hasClasses) {
           message += `😴 No classes scheduled\n\n`;
         }
-      });
+      }
     } else {
       message += "❌ No timetable data available.";
     }
 
     await ctx.replyWithMarkdown(message);
 
-    if (
-      timetableData &&
-      timetableData.schedule &&
-      timetableData.schedule.length > 3
-    ) {
-      if (dayOrder !== "-") {
-        setTimeout(() => {
-          ctx.reply(
-            "🔍 Want to see just today's classes? Use /todaysclass command!"
-          );
-        }, 1000);
-      }
+    if (timetableData?.schedule?.length > 3 && dayOrder !== "-") {
+      setTimeout(() => {
+        ctx.reply(
+          "🔍 Want to see just today's classes? Use /todaysclass command!"
+        );
+      }, 1000);
     }
   } catch (error) {
-    console.error("Timetable error:", error.response?.data || error.message);
     ctx.reply(
       `❌ Error fetching timetable: ${
-        error.response?.data?.error || error.message
+        error.response?.data?.error || error.message || "Unknown error"
       }`
     );
   }
@@ -122,7 +103,6 @@ async function handleTodayTimetable(ctx) {
       "/calendar",
       session
     );
-
     const dayOrder = calendarResponse.data.today.dayOrder;
 
     if (dayOrder === "-") {
@@ -136,32 +116,31 @@ async function handleTodayTimetable(ctx) {
       "/timetable",
       session
     );
-
     clearInterval(loadingInterval);
 
     const timetableData = response.data;
+    const dayOrderInt = parseInt(dayOrder);
 
     let message = `📚 *Today's Classes*\n`;
     message += `━━━━━━━━━━━━━━━━━━\n`;
     message += `📅 Day Order: ${dayOrder}\n\n`;
 
-    if (timetableData && timetableData.schedule) {
+    if (timetableData?.schedule) {
       const todaySchedule = timetableData.schedule.find(
-        (day) => day.day === parseInt(dayOrder)
+        (day) => day.day === dayOrderInt
       );
 
       if (todaySchedule) {
         let hasClasses = false;
 
-        todaySchedule.table.forEach((slot) => {
+        for (const slot of todaySchedule.table) {
           if (slot) {
             hasClasses = true;
             message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
             message += `📚 ${slot.name} (${slot.courseType})\n`;
-            message += `🏛 Room: ${slot.roomNo}\n`;
-            message += `\n`;
+            message += `🏛 Room: ${slot.roomNo}\n\n`;
           }
-        });
+        }
 
         if (!hasClasses) {
           message += `🎉 No classes scheduled for today!\n`;
@@ -175,13 +154,9 @@ async function handleTodayTimetable(ctx) {
 
     await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error(
-      "Today's timetable error:",
-      error.response?.data || error.message
-    );
     ctx.reply(
       `❌ Error fetching today's timetable: ${
-        error.response?.data?.error || error.message
+        error.response?.data?.error || error.message || "Unknown error"
       }`
     );
   }
@@ -198,6 +173,7 @@ async function handleTomorrowTimetable(ctx) {
   if (!session || !session.token) {
     return ctx.reply("You need to login first. Use /login command.");
   }
+
   try {
     await ctx.reply("🔄 Fetching tomorrow's classes...");
 
@@ -209,7 +185,6 @@ async function handleTomorrowTimetable(ctx) {
       "/calendar",
       session
     );
-
     const dayOrder = calendarResponse.data.tomorrow?.dayOrder;
 
     if (!dayOrder || dayOrder === "-") {
@@ -226,28 +201,28 @@ async function handleTomorrowTimetable(ctx) {
     clearInterval(loadingInterval);
 
     const timetableData = response.data;
+    const dayOrderInt = parseInt(dayOrder);
 
     let message = `📚 *Tomorrow's Classes*\n`;
     message += `━━━━━━━━━━━━━━━━━━\n`;
     message += `📅 Day Order: ${dayOrder}\n\n`;
 
-    if (timetableData && timetableData.schedule) {
+    if (timetableData?.schedule) {
       const tomorrowSchedule = timetableData.schedule.find(
-        (day) => day.day === parseInt(dayOrder)
+        (day) => day.day === dayOrderInt
       );
 
       if (tomorrowSchedule) {
         let hasClasses = false;
 
-        tomorrowSchedule.table.forEach((slot) => {
+        for (const slot of tomorrowSchedule.table) {
           if (slot) {
             hasClasses = true;
             message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
             message += `📚 ${slot.name} (${slot.courseType})\n`;
-            message += `🏛 Room: ${slot.roomNo}\n`;
-            message += `\n`;
+            message += `🏛 Room: ${slot.roomNo}\n\n`;
           }
-        });
+        }
 
         if (!hasClasses) {
           message += `🎉 No classes scheduled for tomorrow!\n`;
@@ -261,17 +236,14 @@ async function handleTomorrowTimetable(ctx) {
 
     await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error(
-      "Tomorrow's timetable error:",
-      error.response?.data || error.message
-    );
     ctx.reply(
       `❌ Error fetching tomorrow's timetable: ${
-        error.response?.data?.error || error.message
+        error.response?.data?.error || error.message || "Unknown error"
       }`
     );
   }
 }
+
 /**
  * Handle day after tomorrow's timetable command
  * @param {Object} ctx - Telegraf context
@@ -291,11 +263,11 @@ async function handleDayAfterTomorrowTimetable(ctx) {
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
     }, 3000);
 
+    // Fetch calendar data
     const calendarResponse = await apiService.makeAuthenticatedRequest(
       "/calendar",
       session
     );
-
     const dayOrder = calendarResponse.data.dayAfterTomorrow?.dayOrder;
 
     if (!dayOrder || dayOrder === "-") {
@@ -309,31 +281,31 @@ async function handleDayAfterTomorrowTimetable(ctx) {
       "/timetable",
       session
     );
-
     clearInterval(loadingInterval);
 
     const timetableData = response.data;
+    const dayOrderInt = parseInt(dayOrder);
 
     let message = `📚 *Day After Tomorrow's Classes*\n`;
     message += `━━━━━━━━━━━━━━━━━━\n`;
     message += `📅 Day Order: ${dayOrder}\n\n`;
 
-    if (timetableData && timetableData.schedule) {
+    if (timetableData?.schedule) {
       const dayAfterTomorrowSchedule = timetableData.schedule.find(
-        (day) => day.day === parseInt(dayOrder)
+        (day) => day.day === dayOrderInt
       );
+
       if (dayAfterTomorrowSchedule) {
         let hasClasses = false;
 
-        dayAfterTomorrowSchedule.table.forEach((slot) => {
+        for (const slot of dayAfterTomorrowSchedule.table) {
           if (slot) {
             hasClasses = true;
             message += `⏰ *${slot.startTime} - ${slot.endTime}*\n`;
             message += `📚 ${slot.name} (${slot.courseType})\n`;
-            message += `🏛 Room: ${slot.roomNo}\n`;
-            message += `\n`;
+            message += `🏛 Room: ${slot.roomNo}\n\n`;
           }
-        });
+        }
 
         if (!hasClasses) {
           message += `🎉 No classes scheduled for day after tomorrow!\n`;
@@ -344,15 +316,12 @@ async function handleDayAfterTomorrowTimetable(ctx) {
     } else {
       message += "❌ No timetable data available.";
     }
+
     await ctx.replyWithMarkdown(message);
   } catch (error) {
-    console.error(
-      "Day after tomorrow's timetable error:",
-      error.response?.data || error.message
-    );
     ctx.reply(
       `❌ Error fetching day after tomorrow's timetable: ${
-        error.response?.data?.error || error.message
+        error.response?.data?.error || error.message || "Unknown error"
       }`
     );
   }

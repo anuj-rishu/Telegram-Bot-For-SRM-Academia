@@ -12,9 +12,6 @@ const config = require('../config/config')
 async function makeAuthenticatedRequest(endpoint, session, method = 'get', data = null) {
   const url = `${config.API_BASE_URL}${endpoint}`;
   
-  console.log(`Making ${method} request to: ${url}`);
-  console.log(`Using CSRF Token: ${session.csrfToken ? session.csrfToken.substring(0, 10) + '...' : 'none'}`);
-  
   const headers = {
     'Authorization': `Bearer ${session.token}`,
     'X-CSRF-Token': session.csrfToken

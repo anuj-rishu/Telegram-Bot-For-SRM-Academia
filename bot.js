@@ -12,6 +12,7 @@ const calendarController = require("./controllers/calendarController");
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
+const winston = require("winston");
 
 // Task notification
 const taskScene = require("./scenes/taskScene");
@@ -20,19 +21,26 @@ const TaskNotificationService = require("./notification/taskNotification");
 
 const CustomMessageService = require("./services/customMessageService");
 
+
+const logger = winston.createLogger({
+  level: 'error',
+  format: winston.format.simple(),
+  transports: [
+    new winston.transports.Console({
+      silent: true 
+    })
+  ]
+});
+
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
-// handle blocked users
+
 const originalSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
 bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   try {
     return await originalSendMessage(chatId, text, options);
   } catch (error) {
-    if (error.response && error.response.error_code === 403) {
-      console.warn(`🚫 User ${chatId} has blocked the bot.`);
-    } else {
-      console.error(`❌ Error sending message to ${chatId}:`, error);
-    }
+
   }
 };
 
@@ -133,7 +141,6 @@ bot.help((ctx) => {
       "/todaysclass - Get Todays Class\n" +
       "/tomorrowclass - Get Tomorrows Class\n" +
       "/dayafterclass  - Get Day After Tomorrows Class\n" +
-      "/dayorder - Check today's day order and classes\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
       "/addtask - Create a new task with reminder\n" +
@@ -145,8 +152,9 @@ bot.help((ctx) => {
   );
 });
 
+
 bot.catch((err, ctx) => {
-  console.error(`Error for ${ctx.updateType}:`, err);
+
   ctx.reply("An error occurred. Please try again later.");
 });
 

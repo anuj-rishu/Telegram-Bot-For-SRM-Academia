@@ -2,49 +2,20 @@ const moment = require("moment");
 const Task = require("../model/task");
 
 class TaskNotificationService {
-    constructor(bot) {
+  constructor(bot) {
     this.bot = bot;
-    console.log("✅ Task notification service initialized");
-  
-    setInterval(() => this.checkTaskReminders(), 5 * 60 * 1000); // Changed from 1 min to 5 min
-  }
-  
-  async checkTaskReminders() {
-    try {
-      const now = new Date();
-  
-      const tasks = await Task.find({
-        isCompleted: false,
-        reminderSent: false,
-      });
-  
-      for (const task of tasks) {
-        const reminderTime = new Date(
-          task.dueDate.getTime() - task.reminderMinutes * 60 * 1000
-        );
-  
-        if (
-          reminderTime <= now &&
-          reminderTime >= new Date(now.getTime() - 5 * 60 * 1000) // Changed to match the 5-minute polling interval
-        ) {
-          await this.sendTaskReminder(task);
-  
-          task.reminderSent = true;
-          await task.save();
-        }
-      }
-    } catch (error) {
-      console.error("Error checking task reminders:", error);
-    }
+    setInterval(() => this.checkTaskReminders(), 5 * 60 * 1000);
   }
 
   async checkTaskReminders() {
     try {
       const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
       const tasks = await Task.find({
         isCompleted: false,
         reminderSent: false,
+        dueDate: { $gt: now },
       });
 
       for (const task of tasks) {
@@ -52,19 +23,15 @@ class TaskNotificationService {
           task.dueDate.getTime() - task.reminderMinutes * 60 * 1000
         );
 
-        if (
-          reminderTime <= now &&
-          reminderTime >= new Date(now.getTime() - 60 * 1000)
-        ) {
+        if (reminderTime <= now && reminderTime >= fiveMinutesAgo) {
           await this.sendTaskReminder(task);
 
-          task.reminderSent = true;
-          await task.save();
+          await Task.findByIdAndUpdate(task._id, {
+            reminderSent: true,
+          });
         }
       }
-    } catch (error) {
-      console.error("Error checking task reminders:", error);
-    }
+    } catch (error) {}
   }
 
   async sendTaskReminder(task) {
@@ -78,7 +45,6 @@ class TaskNotificationService {
 
       await this.bot.telegram.sendMessage(task.telegramId, message, {
         parse_mode: "Markdown",
-
         reply_markup: {
           inline_keyboard: [
             [
@@ -90,16 +56,7 @@ class TaskNotificationService {
           ],
         },
       });
-
-      console.log(
-        `Sent reminder for task ${task._id} to user ${task.telegramId}`
-      );
-    } catch (error) {
-      console.error(
-        `Error sending task reminder to user ${task.telegramId}:`,
-        error
-      );
-    }
+    } catch (error) {}
   }
 }
 

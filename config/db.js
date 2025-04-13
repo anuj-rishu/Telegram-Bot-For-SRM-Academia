@@ -1,12 +1,23 @@
 const mongoose = require("mongoose");
+const winston = require("winston");
+
+const logger = winston.createLogger({
+  level: process.env.NODE_ENV === "production" ? "error" : "info",
+  format: winston.format.simple(),
+  transports: [
+    new winston.transports.Console({
+      handleExceptions: true,
+    }),
+  ],
+});
 
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {});
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    logger.info(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error(`Error connecting to MongoDB: ${error.message}`);
+    logger.error(`Error connecting to MongoDB: ${error.message}`);
     process.exit(1);
   }
 };

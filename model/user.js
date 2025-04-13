@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
     username: {
       type: String,
@@ -23,21 +24,21 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
     marks: {
-      type: Object,
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
     attendance: {
-      type: Object,
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
     userInfo: {
-      type: Object,
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
-
     notifiedMarksUpdates: {
-      type: Array,
+      type: [String],
       default: [],
     },
     lastMarksUpdate: {
@@ -45,7 +46,7 @@ const UserSchema = new mongoose.Schema(
       default: null,
     },
     notifiedAttendanceUpdates: {
-      type: Array,
+      type: [String],
       default: [],
     },
     lastAttendanceUpdate: {
@@ -53,8 +54,13 @@ const UserSchema = new mongoose.Schema(
       default: null,
     },
   },
+  {
+    timestamps: true,
 
-  { timestamps: true }
+    bufferCommands: false,
+  }
 );
+
+UserSchema.index({ lastMarksUpdate: 1, lastAttendanceUpdate: 1 });
 
 module.exports = mongoose.model("User", UserSchema);
