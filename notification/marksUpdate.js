@@ -10,7 +10,7 @@ class MarksNotificationService {
     this.loadNotifiedUpdatesFromDB();
 
     setTimeout(() => this.checkMarksUpdates(), 10000);
-    setInterval(() => this.checkMarksUpdates(), 5 * 60 * 1000); //
+    setInterval(() => this.checkMarksUpdates(), 3 * 60 * 1000); 
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 

@@ -9,7 +9,7 @@ class AttendanceNotificationService {
 
     this.loadNotifiedUpdatesFromDB();
     setTimeout(() => this.checkAttendanceUpdates(), 10000);
-    setInterval(() => this.checkAttendanceUpdates(), 5 * 60 * 1000);
+    setInterval(() => this.checkAttendanceUpdates(), 2 * 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
