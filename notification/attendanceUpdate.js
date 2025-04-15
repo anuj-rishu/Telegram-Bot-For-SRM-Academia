@@ -8,6 +8,9 @@ class AttendanceNotificationService {
     this.notifiedUpdates = new Map();
 
     this.loadNotifiedUpdatesFromDB();
+
+    setTimeout(() => this.migrateNotificationData(), 5000);
+
     setTimeout(() => this.checkAttendanceUpdates(), 10000);
     setInterval(() => this.checkAttendanceUpdates(), 2 * 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
@@ -16,7 +19,7 @@ class AttendanceNotificationService {
   async loadNotifiedUpdatesFromDB() {
     try {
       const users = await User.find({
-        notifiedAttendanceUpdates: { $exists: true },
+        notifiedAttendanceUpdates: { $exists: true, $ne: [] },
       });
 
       for (const user of users) {
@@ -28,6 +31,26 @@ class AttendanceNotificationService {
             if (update && update.id && update.timestamp) {
               this.notifiedUpdates.set(update.id, update.timestamp);
             }
+          });
+        }
+      }
+    } catch (error) {}
+  }
+
+  async migrateNotificationData() {
+    try {
+      const users = await User.find({
+        notifiedAttendanceUpdates: { $exists: true },
+      });
+
+      for (const user of users) {
+        if (
+          user.notifiedAttendanceUpdates.length > 0 &&
+          (typeof user.notifiedAttendanceUpdates[0] === "string" ||
+            !user.notifiedAttendanceUpdates[0].id)
+        ) {
+          await User.findByIdAndUpdate(user._id, {
+            notifiedAttendanceUpdates: [],
           });
         }
       }
@@ -130,7 +153,8 @@ class AttendanceNotificationService {
         update.new,
         update.type
       );
-      return !this.notifiedUpdates.has(updateId);
+      const isAlreadyNotified = this.notifiedUpdates.has(updateId);
+      return !isAlreadyNotified;
     });
   }
 
@@ -159,7 +183,6 @@ class AttendanceNotificationService {
       );
 
       if (!oldCourse) {
-        // New course added
         if (this.hasValidAttendance(newCourse)) {
           updatedCourses.push({
             courseName: newCourse.courseTitle,

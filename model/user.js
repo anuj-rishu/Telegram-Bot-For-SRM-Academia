@@ -46,7 +46,15 @@ const UserSchema = new mongoose.Schema(
       default: null,
     },
     notifiedAttendanceUpdates: {
-      type: [String],
+      type: [
+        {
+          id: String,
+          timestamp: Number,
+          courseTitle: String,
+          category: String,
+          type: String,
+        },
+      ],
       default: [],
     },
     lastAttendanceUpdate: {
@@ -56,7 +64,6 @@ const UserSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-
     bufferCommands: false,
   }
 );
