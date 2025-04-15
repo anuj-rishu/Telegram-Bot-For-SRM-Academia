@@ -12,7 +12,7 @@ class AttendanceNotificationService {
     setTimeout(() => this.migrateNotificationData(), 5000);
 
     setTimeout(() => this.checkAttendanceUpdates(), 10000);
-    setInterval(() => this.checkAttendanceUpdates(), 2 * 60 * 1000);
+    setInterval(() => this.checkAttendanceUpdates(), 3 * 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
