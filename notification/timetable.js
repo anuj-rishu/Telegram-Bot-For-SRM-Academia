@@ -286,9 +286,8 @@ class NotificationService {
 
         sortedClasses.forEach((classInfo) => {
           classesMessage += `⏰ *${classInfo.startTime} - ${classInfo.endTime}*\n`;
-          classesMessage += `📚 ${classInfo.name} (${classInfo.code})\n`;
-          classesMessage += `🏛 Room: ${classInfo.roomNo || "N/A"}\n`;
-          classesMessage += `📝 Type: ${classInfo.courseType || "N/A"}\n\n`;
+          classesMessage += `📚 ${classInfo.name} (${classInfo.Type})\n`;
+          classesMessage += `🏛 Room: ${classInfo.roomNo || "N/A"}\n\n`;
         });
 
         await this.bot.telegram.sendMessage(userId, classesMessage, {
