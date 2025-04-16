@@ -286,7 +286,7 @@ class NotificationService {
 
         sortedClasses.forEach((classInfo) => {
           classesMessage += `⏰ *${classInfo.startTime} - ${classInfo.endTime}*\n`;
-          classesMessage += `📚 ${classInfo.name} (${classInfo.Type})\n`;
+          classesMessage += `📚 ${classInfo.name} (${classInfo.courseType})\n`;
           classesMessage += `🏛 Room: ${classInfo.roomNo || "N/A"}\n\n`;
         });
 
