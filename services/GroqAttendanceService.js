@@ -30,53 +30,131 @@ class GroqAttendanceService {
     }
   }
 
-  async processAttendanceQuestion(userId, question, session) {
+   async processAttendanceQuestion(userId, question, session) {
     try {
       if (!session || !session.token) {
         throw new Error("Session not found or invalid. Please login first.");
       }
-
+  
       const [calendarData, attendanceData, timetableData] = await Promise.all([
         this.fetchData(this.calendarApiUrl, session),
         this.fetchData(this.attendanceApiUrl, session),
         this.fetchData(this.timetableApiUrl, session),
       ]);
-
+  
       const dateMatch = question.match(
         /(\d+)(?:st|nd|rd|th)?\s*(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i
       );
-
+  
       let dateInfo = null;
       let scheduledClasses = [];
       let slotToClassesMap = new Map();
       let courseCodes = new Set();
-
+  
       if (dateMatch) {
         const day = dateMatch[1];
         const month = dateMatch[2].toLowerCase();
-
+        const displayDate = `${day} ${month.charAt(0).toUpperCase() + month.slice(1)}`;
+  
         dateInfo = this.findDateInCalendar(calendarData, day, month);
-
-        if (dateInfo && dateInfo.dayOrder && dateInfo.dayOrder !== "-") {
-          const dayOrderNum = parseInt(dateInfo.dayOrder);
-          scheduledClasses = this.findAllClassesForDayOrder(
-            timetableData,
-            dayOrderNum
-          );
-          slotToClassesMap = this.groupClassesBySlot(scheduledClasses);
-          scheduledClasses.forEach((classInfo) => {
-            courseCodes.add(classInfo.code);
-          });
+        
+        // Check if date is a holiday or weekend
+        if (dateInfo) {
+          // Holiday check: dayOrder is "-" or holiday property exists
+          if (dateInfo.dayOrder === "-" || dateInfo.holiday) {
+            const holidayName = dateInfo.holiday ? ` (${dateInfo.holiday})` : "";
+            const holidayMsg = `${displayDate} is a holiday${holidayName}. No classes are scheduled, so your attendance won't be affected.`;
+            
+            // Save the query to database
+            try {
+              await AttendanceQuery.create({
+                telegramId: userId.toString(),
+                question: question,
+                response: holidayMsg
+              });
+            } catch (dbError) {
+              console.error("Failed to save attendance query to database:", dbError.message);
+            }
+            
+            return holidayMsg;
+          }
+          
+          // No day order assigned (could be weekend)
+          if (!dateInfo.dayOrder) {
+            const noClassesMsg = `${displayDate} has no scheduled classes. Your attendance won't be affected.`;
+            
+            // Save the query to database
+            try {
+              await AttendanceQuery.create({
+                telegramId: userId.toString(),
+                question: question,
+                response: noClassesMsg
+              });
+            } catch (dbError) {
+              console.error("Failed to save attendance query to database:", dbError.message);
+            }
+            
+            return noClassesMsg;
+          }
+          
+          // Valid day with day order
+          if (dateInfo.dayOrder && dateInfo.dayOrder !== "-") {
+            const dayOrderNum = parseInt(dateInfo.dayOrder);
+            scheduledClasses = this.findAllClassesForDayOrder(
+              timetableData,
+              dayOrderNum
+            );
+            
+            // Check if there are no classes on this day order
+            if (scheduledClasses.length === 0) {
+              const noClassesMsg = `No classes are scheduled on ${displayDate} (Day Order: ${dateInfo.dayOrder}). Your attendance won't be affected.`;
+              
+              // Save the query to database
+              try {
+                await AttendanceQuery.create({
+                  telegramId: userId.toString(),
+                  question: question,
+                  response: noClassesMsg
+                });
+              } catch (dbError) {
+                console.error("Failed to save attendance query to database:", dbError.message);
+              }
+              
+              return noClassesMsg;
+            }
+            
+            slotToClassesMap = this.groupClassesBySlot(scheduledClasses);
+            scheduledClasses.forEach((classInfo) => {
+              courseCodes.add(classInfo.code);
+            });
+          }
+        } else {
+          // Date not found in calendar
+          const invalidDateMsg = `I couldn't find ${displayDate} in the academic calendar. Please check if this is a valid college working day.`;
+          
+          // Save the query to database
+          try {
+            await AttendanceQuery.create({
+              telegramId: userId.toString(),
+              question: question,
+              response: invalidDateMsg
+            });
+          } catch (dbError) {
+            console.error("Failed to save attendance query to database:", dbError.message);
+          }
+          
+          return invalidDateMsg;
         }
       }
-
+  
+      // Continue with processing for valid class days
       let relevantAttendance = [];
       if (attendanceData && attendanceData.attendance && courseCodes.size > 0) {
         relevantAttendance = attendanceData.attendance.filter((course) =>
           courseCodes.has(course.courseCode)
         );
       }
-
+  
       const groqResponse = await this.queryGroqAPI(
         question,
         calendarData,
@@ -88,7 +166,7 @@ class GroqAttendanceService {
         relevantAttendance,
         dateMatch
       );
-
+  
       const formattedResponse = this.formatResponseForTelegram(groqResponse);
       
       // Save the question and response to the database
@@ -99,10 +177,9 @@ class GroqAttendanceService {
           response: formattedResponse
         });
       } catch (dbError) {
-        // Log DB error but don't interrupt user experience
         console.error("Failed to save attendance query to database:", dbError.message);
       }
-
+  
       return formattedResponse;
     } catch (error) {
       throw new Error(
