@@ -8,14 +8,13 @@ const attendancePredictionScene = new Scenes.WizardScene(
 
   async (ctx) => {
     await ctx.reply(
-      "🤖 Hello! I can help you with attendance predictions.\n\n" +
-        "You can ask me questions like:\n" +
-        '- "What\'s my current attendance percentage?"\n' +
-        '- "Can I skip tomorrow\'s class?"\n' +
-        '- "How many classes can I miss?"\n' +
-        '- "What will my attendance be if I miss the next two days?"\n' +
-        '- "Will I be detained if I skip this week?"\n\n' +
-        "What would you like to know about your attendance?",
+      "🤖 Welcome to Attendance Predictor (Phase 1)!\n\n" +
+        "I can calculate how your attendance will be affected if you miss specific days.\n\n" +
+        "Example questions:\n" +
+        '- "What will my attendance be if I miss class on 23 April?"\n' +
+        '- "Calculate my attendance if I\'m absent on 2 May"\n' +
+        '- "What happens to my attendance if I skip 15th June?"\n\n' +
+        "Simply mention the date you plan to be absent, and I'll calculate the impact on your attendance percentage.",
       cancelKeyboard
     );
 
@@ -30,7 +29,7 @@ const attendancePredictionScene = new Scenes.WizardScene(
 
     if (!ctx.message || !ctx.message.text) {
       await ctx.reply(
-        "Please ask a valid question about your attendance:",
+        "Please specify a date you plan to be absent to calculate the attendance impact:",
         cancelKeyboard
       );
       return;
@@ -38,15 +37,19 @@ const attendancePredictionScene = new Scenes.WizardScene(
 
     const question = ctx.message.text;
 
+ 
+    await ctx.replyWithChatAction("typing");
+
     await attendancePredictionController.handleAttendancePrediction(
       ctx,
       question
     );
+
     await ctx.reply(
-      "Do you have any other questions about your attendance?",
+      "Would you like to check another date?",
       Markup.inlineKeyboard([
-        [Markup.button.callback("Yes, ask another question", "ask_again")],
-        [Markup.button.callback("No, I'm done", "end_prediction")],
+        [Markup.button.callback("Check another date", "ask_again")],
+        [Markup.button.callback("I'm done", "end_prediction")],
       ])
     );
 
@@ -56,9 +59,9 @@ const attendancePredictionScene = new Scenes.WizardScene(
   async (ctx) => {
     if (!ctx.callbackQuery) {
       await ctx.reply(
-        "Please select an option from the buttons below:",
+        "Please select an option:",
         Markup.inlineKeyboard([
-          [Markup.button.callback("Ask another question", "ask_again")],
+          [Markup.button.callback("Check another date", "ask_again")],
           [Markup.button.callback("I'm done", "end_prediction")],
         ])
       );
@@ -68,14 +71,14 @@ const attendancePredictionScene = new Scenes.WizardScene(
     if (ctx.callbackQuery.data === "ask_again") {
       await ctx.answerCbQuery();
       await ctx.reply(
-        "What else would you like to know about your attendance?",
+        'Which date would you like to check next? (e.g., "23 April" or "2 May")',
         cancelKeyboard
       );
       return ctx.wizard.back();
     } else if (ctx.callbackQuery.data === "end_prediction") {
       await ctx.answerCbQuery();
       await ctx.reply(
-        "Thanks for using the attendance prediction service! You can access it again anytime with /predict.",
+        "Thanks for using the attendance predictor! To check future dates anytime, just use /checki.",
         Markup.removeKeyboard()
       );
       return ctx.scene.leave();
