@@ -64,49 +64,50 @@ class AttendanceNotificationService {
         attendance: { $exists: true },
       });
 
-      // Parallelize user attendance checks for faster notifications
-      await Promise.all(users.map(async (user) => {
-        const session = sessionManager.getSession(user.telegramId);
-        if (!session) return;
+      await Promise.all(
+        users.map(async (user) => {
+          const session = sessionManager.getSession(user.telegramId);
+          if (!session) return;
 
-        const response = await apiService.makeAuthenticatedRequest(
-          "/attendance",
-          session
-        );
-        const newAttendanceData = response.data;
+          const response = await apiService.makeAuthenticatedRequest(
+            "/attendance",
+            session
+          );
+          const newAttendanceData = response.data;
 
-        if (!newAttendanceData?.attendance) return;
+          if (!newAttendanceData?.attendance) return;
 
-        const updatedCourses = this.compareAttendance(
-          user.attendance,
-          newAttendanceData
-        );
+          const updatedCourses = this.compareAttendance(
+            user.attendance,
+            newAttendanceData
+          );
 
-        if (updatedCourses.length > 0) {
-          const hasRealChanges = this.hasSignificantChanges(updatedCourses);
+          if (updatedCourses.length > 0) {
+            const hasRealChanges = this.hasSignificantChanges(updatedCourses);
 
-          if (hasRealChanges) {
-            const newUpdates = this.filterAlreadyNotifiedUpdates(
-              user.telegramId,
-              updatedCourses
-            );
-
-            if (newUpdates.length > 0) {
-              await this.sendAttendanceUpdateNotification(
+            if (hasRealChanges) {
+              const newUpdates = this.filterAlreadyNotifiedUpdates(
                 user.telegramId,
-                newUpdates
+                updatedCourses
               );
-              this.markUpdatesAsNotified(user.telegramId, newUpdates);
-              await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
-            }
-          }
 
-          await User.findByIdAndUpdate(user._id, {
-            attendance: newAttendanceData,
-            lastAttendanceUpdate: new Date(),
-          });
-        }
-      }));
+              if (newUpdates.length > 0) {
+                await this.sendAttendanceUpdateNotification(
+                  user.telegramId,
+                  newUpdates
+                );
+                this.markUpdatesAsNotified(user.telegramId, newUpdates);
+                await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
+              }
+            }
+
+            await User.findByIdAndUpdate(user._id, {
+              attendance: newAttendanceData,
+              lastAttendanceUpdate: new Date(),
+            });
+          }
+        })
+      );
     } catch (error) {}
   }
 
