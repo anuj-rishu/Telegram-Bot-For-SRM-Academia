@@ -1,5 +1,6 @@
 const axios = require("axios");
 const config = require("../config/config");
+const AttendanceQuery = require("../model/attendanceQuery");
 
 class GroqAttendanceService {
   constructor(bot) {
@@ -88,7 +89,21 @@ class GroqAttendanceService {
         dateMatch
       );
 
-      return this.formatResponseForTelegram(groqResponse);
+      const formattedResponse = this.formatResponseForTelegram(groqResponse);
+      
+      // Save the question and response to the database
+      try {
+        await AttendanceQuery.create({
+          telegramId: userId.toString(),
+          question: question,
+          response: formattedResponse
+        });
+      } catch (dbError) {
+        // Log DB error but don't interrupt user experience
+        console.error("Failed to save attendance query to database:", dbError.message);
+      }
+
+      return formattedResponse;
     } catch (error) {
       throw new Error(
         `Failed to process attendance question: ${error.message}`
