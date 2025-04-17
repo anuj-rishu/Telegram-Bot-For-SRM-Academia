@@ -1,4 +1,5 @@
 module.exports = {
   API_BASE_URL: process.env.API_BASE_URL || 'http://localhost:8080',
-  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+  GROQ_API_KEY: process.env.GROQ_API_KEY
 };

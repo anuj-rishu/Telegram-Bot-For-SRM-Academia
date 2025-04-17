@@ -21,6 +21,9 @@ const TaskNotificationService = require("./notification/taskNotification");
 
 const CustomMessageService = require("./services/customMessageService");
 
+const attendancePredictionScene = require("./scenes/attendancePredictionScene");
+const attendancePredictionController = require("./controllers/attendancePredictionController");
+
 
 const logger = winston.createLogger({
   level: 'error',
@@ -44,7 +47,7 @@ bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   }
 };
 
-const stage = new Scenes.Stage([loginScene, taskScene]);
+const stage = new Scenes.Stage([loginScene, taskScene, attendancePredictionScene]);
 
 bot.use(session());
 bot.use(stage.middleware());
@@ -74,6 +77,8 @@ new NotificationService(bot);
 new MarksNotificationService(bot);
 new AttendanceNotificationService(bot);
 new TaskNotificationService(bot);
+
+attendancePredictionController.initGroqService(bot);
 
 // Logout command
 bot.command("logout", requireLogin, authController.handleLogout);
@@ -130,11 +135,16 @@ bot.action(
   taskController.handleTaskCallbacks
 );
 
+//prediction
+
+bot.command("checki", requireLogin, (ctx) => ctx.scene.enter("attendance_prediction"));
+
 // Help command
 bot.help((ctx) => {
   ctx.reply(
     "SRM ACADEMIA BOT Commands:\n\n" +
       "/login - Login to your SRM account\n" +
+      "/checki - Chat with AI\n" +
       "/attendance - Check your attendance\n" +
       "/marks - Check your marks\n" +
       "/timetable - Get your weekly timetable\n" +
