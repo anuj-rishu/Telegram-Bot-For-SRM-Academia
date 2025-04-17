@@ -13,19 +13,15 @@ async function handleTimetable(ctx) {
     return ctx.reply("You need to login first. Use /login command.");
   }
 
-  try {
-    await ctx.reply("📊 Fetching your timetable...");
+  ctx.reply("📊 Fetching your timetable...");
 
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
+  try {
+    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
     const [calendarResponse, response] = await Promise.all([
       apiService.makeAuthenticatedRequest("/calendar", session),
       apiService.makeAuthenticatedRequest("/timetable", session),
     ]);
-
-    clearInterval(loadingInterval);
 
     const dayOrder = calendarResponse.data.today.dayOrder;
     const timetableData = response.data;
@@ -65,11 +61,9 @@ async function handleTimetable(ctx) {
     await ctx.replyWithMarkdown(message);
 
     if (timetableData?.schedule?.length > 3 && dayOrder !== "-") {
-      setTimeout(() => {
-        ctx.reply(
-          "🔍 Want to see just today's classes? Use /todaysclass command!"
-        );
-      }, 1000);
+      ctx.reply(
+        "🔍 Want to see just today's classes? Use /todaysclass command!"
+      );
     }
   } catch (error) {
     ctx.reply(
@@ -92,12 +86,10 @@ async function handleTodayTimetable(ctx) {
     return ctx.reply("You need to login first. Use /login command.");
   }
 
-  try {
-    await ctx.reply("🔄 Fetching today's classes...");
+  ctx.reply("🔄 Fetching today's classes...");
 
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
+  try {
+    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
     const calendarResponse = await apiService.makeAuthenticatedRequest(
       "/calendar",
@@ -106,7 +98,6 @@ async function handleTodayTimetable(ctx) {
     const dayOrder = calendarResponse.data.today.dayOrder;
 
     if (dayOrder === "-") {
-      clearInterval(loadingInterval);
       return ctx.replyWithMarkdown(
         "📚 *Today's Classes*\n\n🎉 No classes today (Holiday/Weekend)"
       );
@@ -116,7 +107,6 @@ async function handleTodayTimetable(ctx) {
       "/timetable",
       session
     );
-    clearInterval(loadingInterval);
 
     const timetableData = response.data;
     const dayOrderInt = parseInt(dayOrder);
@@ -174,12 +164,11 @@ async function handleTomorrowTimetable(ctx) {
     return ctx.reply("You need to login first. Use /login command.");
   }
 
-  try {
-    await ctx.reply("🔄 Fetching tomorrow's classes...");
+  // Send immediate feedback
+  ctx.reply("🔄 Fetching tomorrow's classes...");
 
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
+  try {
+    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
     const calendarResponse = await apiService.makeAuthenticatedRequest(
       "/calendar",
@@ -188,7 +177,6 @@ async function handleTomorrowTimetable(ctx) {
     const dayOrder = calendarResponse.data.tomorrow?.dayOrder;
 
     if (!dayOrder || dayOrder === "-") {
-      clearInterval(loadingInterval);
       return ctx.replyWithMarkdown(
         "📚 *Tomorrow's Classes*\n\n🎉 No classes tomorrow (Holiday/Weekend)"
       );
@@ -198,7 +186,6 @@ async function handleTomorrowTimetable(ctx) {
       "/timetable",
       session
     );
-    clearInterval(loadingInterval);
 
     const timetableData = response.data;
     const dayOrderInt = parseInt(dayOrder);
@@ -256,12 +243,11 @@ async function handleDayAfterTomorrowTimetable(ctx) {
     return ctx.reply("You need to login first. Use /login command.");
   }
 
-  try {
-    await ctx.reply("🔄 Fetching classes for day after tomorrow...");
+  // Send immediate feedback
+  ctx.reply("🔄 Fetching classes for day after tomorrow...");
 
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
+  try {
+    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
     // Fetch calendar data
     const calendarResponse = await apiService.makeAuthenticatedRequest(
@@ -271,7 +257,6 @@ async function handleDayAfterTomorrowTimetable(ctx) {
     const dayOrder = calendarResponse.data.dayAfterTomorrow?.dayOrder;
 
     if (!dayOrder || dayOrder === "-") {
-      clearInterval(loadingInterval);
       return ctx.replyWithMarkdown(
         "📚 *Day After Tomorrow's Classes*\n\n🎉 No classes on day after tomorrow (Holiday/Weekend)"
       );
@@ -281,7 +266,6 @@ async function handleDayAfterTomorrowTimetable(ctx) {
       "/timetable",
       session
     );
-    clearInterval(loadingInterval);
 
     const timetableData = response.data;
     const dayOrderInt = parseInt(dayOrder);

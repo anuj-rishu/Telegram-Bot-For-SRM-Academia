@@ -12,7 +12,7 @@ class AttendanceNotificationService {
     setTimeout(() => this.migrateNotificationData(), 5000);
 
     setTimeout(() => this.checkAttendanceUpdates(), 10000);
-    setInterval(() => this.checkAttendanceUpdates(), 3 * 60 * 1000);
+    setInterval(() => this.checkAttendanceUpdates(), 2 * 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
@@ -64,9 +64,10 @@ class AttendanceNotificationService {
         attendance: { $exists: true },
       });
 
-      for (const user of users) {
+      // Parallelize user attendance checks for faster notifications
+      await Promise.all(users.map(async (user) => {
         const session = sessionManager.getSession(user.telegramId);
-        if (!session) continue;
+        if (!session) return;
 
         const response = await apiService.makeAuthenticatedRequest(
           "/attendance",
@@ -74,7 +75,7 @@ class AttendanceNotificationService {
         );
         const newAttendanceData = response.data;
 
-        if (!newAttendanceData?.attendance) continue;
+        if (!newAttendanceData?.attendance) return;
 
         const updatedCourses = this.compareAttendance(
           user.attendance,
@@ -105,7 +106,7 @@ class AttendanceNotificationService {
             lastAttendanceUpdate: new Date(),
           });
         }
-      }
+      }));
     } catch (error) {}
   }
 

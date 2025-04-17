@@ -15,17 +15,12 @@ async function handleUserInfo(ctx) {
 
   try {
     await ctx.reply("🔄 Fetching your profile...");
-
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
+    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
     const response = await apiService.makeAuthenticatedRequest(
       "/user",
       session
     );
-
-    clearInterval(loadingInterval);
 
     const user = response.data;
     let message = "🎓 *STUDENT PROFILE*\n";

@@ -12,6 +12,7 @@ class NotificationService {
   }
 
   scheduleNotifications() {
+    // Send daily schedule at 07:01 AM
     schedule.scheduleJob("01 07 * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
@@ -22,6 +23,7 @@ class NotificationService {
         for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
           const batch = userIds.slice(i, i + BATCH_SIZE);
 
+          // Parallelize sending daily schedule for faster response
           await Promise.all(
             batch.map(async (userId) => {
               try {
@@ -41,6 +43,7 @@ class NotificationService {
   }
 
   scheduleClassReminders() {
+    // Check for upcoming classes every minute
     schedule.scheduleJob("* * * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
@@ -86,9 +89,11 @@ class NotificationService {
       }
 
       if (upcomingClasses.within5Min && upcomingClasses.within5Min.length > 0) {
-        for (const classInfo of upcomingClasses.within5Min) {
-          await this.sendUrgentClassReminderOnce(userId, classInfo, 5);
-        }
+        await Promise.all(
+          upcomingClasses.within5Min.map((classInfo) =>
+            this.sendUrgentClassReminderOnce(userId, classInfo, 5)
+          )
+        );
       }
     } catch (error) {}
   }
@@ -277,6 +282,7 @@ class NotificationService {
       if (todayData.classes && todayData.classes.length > 0) {
         let classesMessage = "";
 
+        // Sort classes by start time for better UX
         const sortedClasses = [...todayData.classes].sort((a, b) => {
           return (
             this.convertTimeToMinutes(a.startTime) -

@@ -25,18 +25,14 @@ async function handleAttendance(ctx) {
   }
 
   try {
+    // Send immediate feedback
     await ctx.reply("Fetching your attendance data...");
-
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
+    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
     const response = await apiService.makeAuthenticatedRequest(
       "/attendance",
       session
     );
-
-    clearInterval(loadingInterval);
 
     if (!response || !response.data) {
       return ctx.reply(
