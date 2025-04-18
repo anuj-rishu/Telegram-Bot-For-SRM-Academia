@@ -12,6 +12,8 @@ const calendarController = require("./controllers/calendarController");
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
+const lostItemScene = require("./scenes/lostItemScene");
+const lostItemController = require("./controllers/lostItemController");
 const winston = require("winston");
 
 // Task notification
@@ -24,30 +26,31 @@ const CustomMessageService = require("./services/customMessageService");
 const attendancePredictionScene = require("./scenes/attendancePredictionScene");
 const attendancePredictionController = require("./controllers/attendancePredictionController");
 
-
 const logger = winston.createLogger({
-  level: 'error',
+  level: "error",
   format: winston.format.simple(),
   transports: [
     new winston.transports.Console({
-      silent: true 
-    })
-  ]
+      silent: true,
+    }),
+  ],
 });
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
-
 
 const originalSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
 bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   try {
     return await originalSendMessage(chatId, text, options);
-  } catch (error) {
-
-  }
+  } catch (error) {}
 };
 
-const stage = new Scenes.Stage([loginScene, taskScene, attendancePredictionScene]);
+const stage = new Scenes.Stage([
+  loginScene,
+  taskScene,
+  attendancePredictionScene,
+  lostItemScene,
+]);
 
 bot.use(session());
 bot.use(stage.middleware());
@@ -137,7 +140,16 @@ bot.action(
 
 //prediction
 
-bot.command("checki", requireLogin, (ctx) => ctx.scene.enter("attendance_prediction"));
+bot.command("checki", requireLogin, (ctx) =>
+  ctx.scene.enter("attendance_prediction")
+);
+
+// report lost item
+bot.command(
+  "reportlost",
+  requireLogin,
+  lostItemController.handleReportLostItem
+);
 
 // Help command
 bot.help((ctx) => {
@@ -153,6 +165,7 @@ bot.help((ctx) => {
       "/dayafterclass  - Get Day After Tomorrows Class\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
+      "/reportlost - Report Lost Item\n" +
       "/addtask - Create a new task with reminder\n" +
       "/tasks - View your tasks\n" +
       "/complete - Mark a task as complete\n" +
@@ -162,9 +175,7 @@ bot.help((ctx) => {
   );
 });
 
-
 bot.catch((err, ctx) => {
-
   ctx.reply("An error occurred. Please try again later.");
 });
 
