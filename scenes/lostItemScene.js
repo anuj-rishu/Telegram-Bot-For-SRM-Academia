@@ -3,6 +3,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sessionManager = require("../utils/sessionManager");
 const User = require("../model/user");
+const config = require("../config/config");
 
 const cancelKeyboard = Markup.keyboard([["❌ Cancel"]]).resize();
 
@@ -163,9 +164,9 @@ const lostItemScene = new Scenes.WizardScene(
         contentType: "image/jpeg",
       });
 
-      const response = await axios.post(
-        "https://lost-and-found-app.vercel.app/api/report-item",
-        formData,
+        const response = await axios.post(
+          config.LOST_ITEM_API_URL,
+          formData,
         {
           headers: {
             ...formData.getHeaders(),
