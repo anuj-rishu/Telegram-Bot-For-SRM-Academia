@@ -151,6 +151,24 @@ bot.command(
   lostItemController.handleReportLostItem
 );
 
+//find lost item
+bot.command("finditem", async (ctx) => {
+  try {
+    await ctx.reply(
+      "🔍 *Find Lost Items*\n\n" +
+        "Click the link below to search through all reported lost items:\n\n" +
+        "🌐 [SRM Lost & Found Portal](https://srm-lost-found.vercel.app)",
+      {
+        parse_mode: "Markdown",
+        disable_web_page_preview: false,
+      }
+    );
+  } catch (error) {
+    console.error("Error in finditem command:", error);
+    await ctx.reply("Sorry, something went wrong. Please try again later.");
+  }
+});
+
 // Help command
 bot.help((ctx) => {
   ctx.reply(
