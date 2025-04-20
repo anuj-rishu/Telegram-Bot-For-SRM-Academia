@@ -12,7 +12,6 @@ class NotificationService {
   }
 
   scheduleNotifications() {
-    // Send daily schedule at 07:01 AM
     schedule.scheduleJob("58 06 * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
@@ -23,7 +22,6 @@ class NotificationService {
         for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
           const batch = userIds.slice(i, i + BATCH_SIZE);
 
-          // Parallelize sending daily schedule for faster response
           await Promise.all(
             batch.map(async (userId) => {
               try {
@@ -43,7 +41,6 @@ class NotificationService {
   }
 
   scheduleClassReminders() {
-    // Check for upcoming classes every minute
     schedule.scheduleJob("* * * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
@@ -126,14 +123,14 @@ class NotificationService {
       );
 
       if (response?.data?.attendance) {
-        // Always match both courseCode and courseType/category to avoid merging theory/practical
         let courseAttendance = response.data.attendance.find(
           (course) =>
-            (course.courseCode === classInfo.code || course.courseTitle === classInfo.name) &&
-            (course.courseType === classInfo.courseType || course.category === classInfo.courseType)
+            (course.courseCode === classInfo.code ||
+              course.courseTitle === classInfo.name) &&
+            (course.courseType === classInfo.courseType ||
+              course.category === classInfo.courseType)
         );
 
-        // Remove fallback that ignores type/category to avoid merging theory/practical
         if (courseAttendance) {
           const hoursConducted = parseInt(courseAttendance.hoursConducted);
           const hoursAbsent = parseInt(courseAttendance.hoursAbsent);
@@ -149,7 +146,9 @@ class NotificationService {
 
           attendanceInfo = `\n📊 *Attendance Status${
             courseAttendance.courseType || courseAttendance.category
-              ? " (" + (courseAttendance.courseType || courseAttendance.category) + ")"
+              ? " (" +
+                (courseAttendance.courseType || courseAttendance.category) +
+                ")"
               : ""
           }*\n${statusEmoji} *Current: ${attendancePercentage}%*`;
 
@@ -278,7 +277,6 @@ class NotificationService {
       if (todayData.classes && todayData.classes.length > 0) {
         let classesMessage = "";
 
-        // Sort classes by start time for better UX
         const sortedClasses = [...todayData.classes].sort((a, b) => {
           return (
             this.convertTimeToMinutes(a.startTime) -
