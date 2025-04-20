@@ -13,7 +13,7 @@ class NotificationService {
 
   scheduleNotifications() {
     // Send daily schedule at 07:01 AM
-    schedule.scheduleJob("01 07 * * *", async () => {
+    schedule.scheduleJob("58 06 * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
         const userIds = Object.keys(sessions);
