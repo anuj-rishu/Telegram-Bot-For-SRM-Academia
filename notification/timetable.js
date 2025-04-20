@@ -126,18 +126,14 @@ class NotificationService {
       );
 
       if (response?.data?.attendance) {
+        // Always match both courseCode and courseType/category to avoid merging theory/practical
         let courseAttendance = response.data.attendance.find(
           (course) =>
-            course.courseCode === classInfo.code &&
-            course.courseType === classInfo.courseType
+            (course.courseCode === classInfo.code || course.courseTitle === classInfo.name) &&
+            (course.courseType === classInfo.courseType || course.category === classInfo.courseType)
         );
 
-        if (!courseAttendance) {
-          courseAttendance = response.data.attendance.find(
-            (course) => course.courseCode === classInfo.code
-          );
-        }
-
+        // Remove fallback that ignores type/category to avoid merging theory/practical
         if (courseAttendance) {
           const hoursConducted = parseInt(courseAttendance.hoursConducted);
           const hoursAbsent = parseInt(courseAttendance.hoursAbsent);
@@ -152,8 +148,8 @@ class NotificationService {
           else if (attendancePercentage >= 60) statusEmoji = "⚠️";
 
           attendanceInfo = `\n📊 *Attendance Status${
-            courseAttendance.courseType
-              ? " (" + courseAttendance.courseType + ")"
+            courseAttendance.courseType || courseAttendance.category
+              ? " (" + (courseAttendance.courseType || courseAttendance.category) + ")"
               : ""
           }*\n${statusEmoji} *Current: ${attendancePercentage}%*`;
 
