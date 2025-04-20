@@ -1,6 +1,31 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 
+async function createLoaderAnimation(ctx, initialText) {
+  const loadingFrames = ["⏳", "⌛️", "⏳", "⌛️"];
+  const loadingMsg = await ctx.reply(`${loadingFrames[0]} ${initialText}`);
+
+  let frameIndex = 0;
+  const intervalId = setInterval(() => {
+    frameIndex = (frameIndex + 1) % loadingFrames.length;
+    ctx.telegram
+      .editMessageText(
+        ctx.chat.id,
+        loadingMsg.message_id,
+        undefined,
+        `${loadingFrames[frameIndex]} ${initialText}`
+      )
+      .catch(() => {
+        clearInterval(intervalId);
+      });
+  }, 800);
+
+  return {
+    messageId: loadingMsg.message_id,
+    stop: () => clearInterval(intervalId),
+  };
+}
+
 /**
  * Handle courses command
  * @param {Object} ctx - Telegraf context
@@ -13,22 +38,23 @@ async function handleCourses(ctx) {
     return ctx.reply("You need to login first. Use /login command.");
   }
 
+  const loader = await createLoaderAnimation(ctx, "Fetching your courses...");
+
   try {
-    await ctx.reply("Fetching your courses...");
-
-    const loadingInterval = setInterval(() => {
-      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-    }, 3000);
-
     const response = await apiService.makeAuthenticatedRequest(
       "/courses",
       session
     );
 
-    clearInterval(loadingInterval);
+    loader.stop();
 
     if (!response || !response.data) {
-      return ctx.reply("Unable to fetch courses. Please try again later.");
+      return ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loader.messageId,
+        undefined,
+        "Unable to fetch courses. Please try again later."
+      );
     }
 
     const coursesData = response.data;
@@ -64,10 +90,21 @@ async function handleCourses(ctx) {
       message = "📚 *YOUR COURSES*\n\n❌ No courses data available.";
     }
 
-    await ctx.replyWithMarkdown(message);
+    await ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loader.messageId,
+      undefined,
+      message,
+      { parse_mode: "Markdown" }
+    );
   } catch (error) {
-    ctx.reply(
-      `Error fetching courses: ${
+    loader.stop();
+
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loader.messageId,
+      undefined,
+      `❌ Error fetching courses: ${
         error.response?.data?.error || error.message || "Unknown error"
       }`
     );

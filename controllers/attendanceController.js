@@ -12,6 +12,31 @@ const logger = winston.createLogger({
   ],
 });
 
+async function createLoaderAnimation(ctx, initialText) {
+  const loadingFrames = ["⏳", "⌛️", "⏳", "⌛️"];
+  const loadingMsg = await ctx.reply(`${loadingFrames[0]} ${initialText}`);
+
+  let frameIndex = 0;
+  const intervalId = setInterval(() => {
+    frameIndex = (frameIndex + 1) % loadingFrames.length;
+    ctx.telegram
+      .editMessageText(
+        ctx.chat.id,
+        loadingMsg.message_id,
+        undefined,
+        `${loadingFrames[frameIndex]} ${initialText}`
+      )
+      .catch(() => {
+        clearInterval(intervalId);
+      });
+  }, 800);
+
+  return {
+    messageId: loadingMsg.message_id,
+    stop: () => clearInterval(intervalId),
+  };
+}
+
 /**
  * Handle attendance command
  * @param {Object} ctx
@@ -24,18 +49,24 @@ async function handleAttendance(ctx) {
     return ctx.reply("You need to login first. Use /login command.");
   }
 
-  try {
-    // Send immediate feedback
-    await ctx.reply("Fetching your attendance data...");
-    ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+  const loader = await createLoaderAnimation(
+    ctx,
+    "Fetching your attendance data..."
+  );
 
+  try {
     const response = await apiService.makeAuthenticatedRequest(
       "/attendance",
       session
     );
 
+    loader.stop();
+
     if (!response || !response.data) {
-      return ctx.reply(
+      return ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loader.messageId,
+        undefined,
         "Unable to fetch attendance data. Please try again later."
       );
     }
@@ -89,7 +120,7 @@ async function handleAttendance(ctx) {
           else if (attendancePercentage >= 75) courseEmoji = "✳️";
           else if (attendancePercentage >= 60) courseEmoji = "⚠️";
 
-          message += `📚 *${courseTitle}* (${category})\n`;
+          message += `${categoryEmoji} *${courseTitle}* (${category})\n`;
           message += `${courseEmoji} *Attendance: ${attendancePercentage}%*\n`;
           message += `╰┈➤ Present: ${hoursPresent}/${hoursConducted}\n`;
           message += `╰┈➤ Absent: ${hoursAbsent}\n`;
@@ -122,16 +153,30 @@ async function handleAttendance(ctx) {
       }
     } catch (processingError) {
       logger.error("Error processing attendance data:", processingError);
-      return ctx.reply(
+      return ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loader.messageId,
+        undefined,
         "Error processing your attendance data. Please try again later."
       );
     }
 
-    await ctx.replyWithMarkdown(message);
+    await ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loader.messageId,
+      undefined,
+      message,
+      { parse_mode: "Markdown" }
+    );
   } catch (error) {
+    loader.stop();
+
     logger.error("Attendance error:", error.response?.data || error.message);
-    ctx.reply(
-      `Error fetching attendance data: ${
+    ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loader.messageId,
+      undefined,
+      `❌ Error fetching attendance data: ${
         error.response?.data?.error || error.message || "Unknown error"
       }`
     );
