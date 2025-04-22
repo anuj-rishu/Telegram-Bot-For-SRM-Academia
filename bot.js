@@ -26,6 +26,10 @@ const CustomMessageService = require("./services/customMessageService");
 const attendancePredictionScene = require("./scenes/attendancePredictionScene");
 const attendancePredictionController = require("./controllers/attendancePredictionController");
 
+const uploadDocumentScene = require("./scenes/uploadDocumentScene");
+const documentController = require("./controllers/documentController");
+
+
 const logger = winston.createLogger({
   level: "error",
   format: winston.format.simple(),
@@ -50,6 +54,7 @@ const stage = new Scenes.Stage([
   taskScene,
   attendancePredictionScene,
   lostItemScene,
+  uploadDocumentScene,  // Add the new scene
 ]);
 
 bot.use(session());
@@ -71,6 +76,12 @@ bot.start((ctx) => {
       "[LinkedIn](https://linkedin.com/in/anuj-rishu)"
   );
 });
+
+
+
+
+bot.command("uploaddoc", requireLogin, documentController.handleUploadDocument);
+
 
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
