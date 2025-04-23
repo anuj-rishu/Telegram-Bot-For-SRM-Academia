@@ -8,6 +8,7 @@ const MIME_TO_EXT = {
   "application/pdf": ".pdf",
   "image/jpeg": ".jpg",
   "image/png": ".png",
+  "image/heic": ".heic",
   "image/gif": ".gif",
   "text/plain": ".txt",
   "text/csv": ".csv",
