@@ -9,22 +9,27 @@ const coursesController = require("./controllers/coursesController");
 const userController = require("./controllers/userController");
 const timetableController = require("./controllers/timetableController");
 const calendarController = require("./controllers/calendarController");
+//notification service
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
+//found and lost
 const lostItemScene = require("./scenes/lostItemScene");
 const lostItemController = require("./controllers/lostItemController");
-const winston = require("winston");
-
 // Task notification
 const taskScene = require("./scenes/taskScene");
 const taskController = require("./controllers/taskController");
 const TaskNotificationService = require("./notification/taskNotification");
-
+//custom message
 const CustomMessageService = require("./services/customMessageService");
-
+//attendance prediction
 const attendancePredictionScene = require("./scenes/attendancePredictionScene");
 const attendancePredictionController = require("./controllers/attendancePredictionController");
+//vault service
+const uploadDocumentScene = require("./scenes/uploadDocumentScene");
+const documentController = require("./controllers/documentController");
+
+const winston = require("winston");
 
 const logger = winston.createLogger({
   level: "error",
@@ -45,11 +50,13 @@ bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   } catch (error) {}
 };
 
+//scenes
 const stage = new Scenes.Stage([
   loginScene,
   taskScene,
   attendancePredictionScene,
   lostItemScene,
+  uploadDocumentScene,
 ]);
 
 bot.use(session());
@@ -169,6 +176,14 @@ bot.command("finditem", async (ctx) => {
   }
 });
 
+//vault service
+bot.command("uploaddoc", requireLogin, documentController.handleUploadDocument);
+bot.command("mydocs", requireLogin, documentController.handleGetDocuments);
+bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
+  const documentId = ctx.match[1];
+  return documentController.handleSendDocument(ctx, documentId);
+});
+
 // Help command
 bot.help((ctx) => {
   ctx.reply(
@@ -183,7 +198,10 @@ bot.help((ctx) => {
       "/dayafterclass  - Get Day After Tomorrows Class\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
+      "/uploaddoc - To upload documents\n" +
+      "/mydocs - Get uploaded docs \n" +
       "/reportlost - Report Lost Item\n" +
+      "/finditem - Find Lost Item\n" +
       "/addtask - Create a new task with reminder\n" +
       "/tasks - View your tasks\n" +
       "/complete - Mark a task as complete\n" +
