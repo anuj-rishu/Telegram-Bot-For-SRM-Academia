@@ -2,6 +2,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const User = require("../model/user");
 const { Markup } = require("telegraf");
+const config = require("../config/config");
 
 const MIME_TO_EXT = {
   "application/pdf": ".pdf",
@@ -32,7 +33,7 @@ const MIME_TO_EXT = {
  * @param {Object} options - Additional options
  */
 const apiRequest = async (endpoint, token, options = {}) => {
-  const url = `https://vaultify-49479b27c2ec.herokuapp.com${endpoint}`;
+  const url = `${config.VAULTIFY_API_URL}${endpoint}`;
   const headers = {
     "x-csrf-token": token,
     Accept: "application/json",
@@ -210,7 +211,7 @@ async function handleSendDocument(ctx, documentId) {
     if (ctx.callbackQuery)
       ctx.answerCbQuery("Error sending document", { show_alert: true });
     await ctx.reply(
-      "❌ Sorry, there was an error sending the document. Please try again later."
+      "❌ Sorry, there was an error retrieving your documents. Please try again later."
     );
   }
 }
