@@ -8,11 +8,13 @@ class AttendanceNotificationService {
     this.notifiedUpdates = new Map();
 
     this.loadNotifiedUpdatesFromDB();
-
     setTimeout(() => this.migrateNotificationData(), 5000);
 
-    setTimeout(() => this.checkAttendanceUpdates(), 10000);
-    setInterval(() => this.checkAttendanceUpdates(), 2 * 60 * 1000);
+    this.batchSize = 10;
+    this.batchDelay = 1200;
+    this.isProcessing = false;
+
+    setTimeout(() => this.startBatchAttendanceCheck(), 10000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
@@ -21,7 +23,6 @@ class AttendanceNotificationService {
       const users = await User.find({
         notifiedAttendanceUpdates: { $exists: true, $ne: [] },
       });
-
       for (const user of users) {
         if (
           user.notifiedAttendanceUpdates &&
@@ -42,7 +43,6 @@ class AttendanceNotificationService {
       const users = await User.find({
         notifiedAttendanceUpdates: { $exists: true },
       });
-
       for (const user of users) {
         if (
           user.notifiedAttendanceUpdates.length > 0 &&
@@ -57,57 +57,83 @@ class AttendanceNotificationService {
     } catch (error) {}
   }
 
-  async checkAttendanceUpdates() {
+  async startBatchAttendanceCheck() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
     try {
       const users = await User.find({
         token: { $exists: true },
         attendance: { $exists: true },
       });
 
-      await Promise.all(
-        users.map(async (user) => {
-          const session = sessionManager.getSession(user.telegramId);
-          if (!session) return;
+      let index = 0;
+      const total = users.length;
+      const processBatch = async () => {
+        const batch = users.slice(index, index + this.batchSize);
+        await Promise.all(
+          batch.map(async (user) => {
+            await this.processUserAttendance(user);
+          })
+        );
+        index += this.batchSize;
+        if (index < total) {
+          setTimeout(processBatch, this.batchDelay);
+        } else {
+          setTimeout(() => {
+            this.isProcessing = false;
+            this.startBatchAttendanceCheck();
+          }, Math.max(0, 60000 - this.batchDelay * Math.ceil(total / this.batchSize)));
+        }
+      };
+      processBatch();
+    } catch (error) {
+      this.isProcessing = false;
+    }
+  }
 
-          const response = await apiService.makeAuthenticatedRequest(
-            "/attendance",
-            session
-          );
-          const newAttendanceData = response.data;
+  async processUserAttendance(user) {
+    try {
+      const session = sessionManager.getSession(user.telegramId);
+      if (!session) return;
 
-          if (!newAttendanceData?.attendance) return;
-
-          const updatedCourses = this.compareAttendance(
-            user.attendance,
-            newAttendanceData
-          );
-
-          if (updatedCourses.length > 0) {
-            const hasRealChanges = this.hasSignificantChanges(updatedCourses);
-
-            if (hasRealChanges) {
-              const newUpdates = this.filterAlreadyNotifiedUpdates(
-                user.telegramId,
-                updatedCourses
-              );
-
-              if (newUpdates.length > 0) {
-                await this.sendAttendanceUpdateNotification(
-                  user.telegramId,
-                  newUpdates
-                );
-                this.markUpdatesAsNotified(user.telegramId, newUpdates);
-                await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
-              }
-            }
-
-            await User.findByIdAndUpdate(user._id, {
-              attendance: newAttendanceData,
-              lastAttendanceUpdate: new Date(),
-            });
-          }
-        })
+      const response = await apiService.makeAuthenticatedRequest(
+        "/attendance",
+        session
       );
+      const newAttendanceData = response.data;
+
+      if (!newAttendanceData?.attendance) return;
+
+      const updatedCourses = this.compareAttendance(
+        user.attendance,
+        newAttendanceData
+      );
+
+      if (updatedCourses.length > 0) {
+        const hasRealChanges = this.hasSignificantChanges(updatedCourses);
+
+        if (hasRealChanges) {
+          const newUpdates = this.filterAlreadyNotifiedUpdates(
+            user.telegramId,
+            updatedCourses
+          );
+
+          if (newUpdates.length > 0) {
+            await this.sendAttendanceUpdateNotification(
+              user.telegramId,
+              newUpdates
+            );
+            this.markUpdatesAsNotified(user.telegramId, newUpdates);
+            await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
+          }
+        }
+
+        await User.findByIdAndUpdate(user._id, {
+          attendance: newAttendanceData,
+          lastAttendanceUpdate: new Date(),
+        });
+      }
     } catch (error) {}
   }
 
