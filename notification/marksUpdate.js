@@ -9,8 +9,11 @@ class MarksNotificationService {
 
     this.loadNotifiedUpdatesFromDB();
 
-    setTimeout(() => this.checkMarksUpdates(), 10000);
-    setInterval(() => this.checkMarksUpdates(), 2 * 60 * 1000); 
+    this.batchSize = 10;
+    this.batchDelay = 1200; 
+    this.isProcessing = false;
+
+    setTimeout(() => this.startBatchMarksCheck(), 10000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
@@ -35,44 +38,72 @@ class MarksNotificationService {
     } catch (error) {}
   }
 
-  async checkMarksUpdates() {
+  async startBatchMarksCheck() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
     try {
       const users = await User.find({
         token: { $exists: true },
         marks: { $exists: true },
       });
 
-      for (const user of users) {
-        const session = sessionManager.getSession(user.telegramId);
-        if (!session) continue;
-
-        const response = await apiService.makeAuthenticatedRequest(
-          "/marks",
-          session
+      let index = 0;
+      const total = users.length;
+      const processBatch = async () => {
+        const batch = users.slice(index, index + this.batchSize);
+        await Promise.all(
+          batch.map(async (user) => {
+            await this.processUserMarks(user);
+          })
         );
-        const newMarksData = response.data;
-
-        if (!newMarksData?.marks) continue;
-
-        const updatedCourses = this.compareMarks(user.marks, newMarksData);
-
-        if (updatedCourses.length > 0) {
-          const newUpdates = this.filterAlreadyNotifiedUpdates(
-            user.telegramId,
-            updatedCourses
-          );
-
-          if (newUpdates.length > 0) {
-            await this.sendMarksUpdateNotification(user.telegramId, newUpdates);
-            this.markUpdatesAsNotified(user.telegramId, newUpdates);
-            await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
-          }
-
-          await User.findByIdAndUpdate(user._id, {
-            marks: newMarksData,
-            lastMarksUpdate: new Date(),
-          });
+        index += this.batchSize;
+        if (index < total) {
+          setTimeout(processBatch, this.batchDelay);
+        } else {
+          setTimeout(() => {
+            this.isProcessing = false;
+            this.startBatchMarksCheck();
+          }, Math.max(0, 60000 - this.batchDelay * Math.ceil(total / this.batchSize)));
         }
+      };
+      processBatch();
+    } catch (error) {
+      this.isProcessing = false;
+    }
+  }
+
+  async processUserMarks(user) {
+    try {
+      const session = sessionManager.getSession(user.telegramId);
+      if (!session) return;
+
+      const response = await apiService.makeAuthenticatedRequest(
+        "/marks",
+        session
+      );
+      const newMarksData = response.data;
+
+      if (!newMarksData?.marks) return;
+
+      const updatedCourses = this.compareMarks(user.marks, newMarksData);
+
+      if (updatedCourses.length > 0) {
+        const newUpdates = this.filterAlreadyNotifiedUpdates(
+          user.telegramId,
+          updatedCourses
+        );
+
+        if (newUpdates.length > 0) {
+          await this.sendMarksUpdateNotification(user.telegramId, newUpdates);
+          this.markUpdatesAsNotified(user.telegramId, newUpdates);
+          await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
+        }
+
+        await User.findByIdAndUpdate(user._id, {
+          marks: newMarksData,
+          lastMarksUpdate: new Date(),
+        });
       }
     } catch (error) {}
   }
