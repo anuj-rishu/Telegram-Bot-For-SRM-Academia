@@ -6,14 +6,11 @@ class MarksNotificationService {
   constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
+    this.checkInterval = 10 * 1000;
 
     this.loadNotifiedUpdatesFromDB();
 
-    this.batchSize = 10;
-    this.batchDelay = 1200; 
-    this.isProcessing = false;
-
-    setTimeout(() => this.startBatchMarksCheck(), 10000);
+    setTimeout(() => this.startMarksMonitoring(), 10000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
@@ -38,38 +35,24 @@ class MarksNotificationService {
     } catch (error) {}
   }
 
-  async startBatchMarksCheck() {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
+  async startMarksMonitoring() {
+    await this.checkAllUsersMarks();
 
+    setInterval(() => this.checkAllUsersMarks(), this.checkInterval);
+  }
+
+  async checkAllUsersMarks() {
     try {
       const users = await User.find({
         token: { $exists: true },
         marks: { $exists: true },
       });
 
-      let index = 0;
-      const total = users.length;
-      const processBatch = async () => {
-        const batch = users.slice(index, index + this.batchSize);
-        await Promise.all(
-          batch.map(async (user) => {
-            await this.processUserMarks(user);
-          })
-        );
-        index += this.batchSize;
-        if (index < total) {
-          setTimeout(processBatch, this.batchDelay);
-        } else {
-          setTimeout(() => {
-            this.isProcessing = false;
-            this.startBatchMarksCheck();
-          }, Math.max(0, 60000 - this.batchDelay * Math.ceil(total / this.batchSize)));
-        }
-      };
-      processBatch();
+      for (const user of users) {
+        await this.processUserMarks(user);
+      }
     } catch (error) {
-      this.isProcessing = false;
+      console.error("Error checking marks:", error.message);
     }
   }
 

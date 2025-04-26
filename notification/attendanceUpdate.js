@@ -6,15 +6,12 @@ class AttendanceNotificationService {
   constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
+    this.checkInterval = 10 * 1000;
 
     this.loadNotifiedUpdatesFromDB();
     setTimeout(() => this.migrateNotificationData(), 5000);
 
-    this.batchSize = 10;
-    this.batchDelay = 1200;
-    this.isProcessing = false;
-
-    setTimeout(() => this.startBatchAttendanceCheck(), 10000);
+    setTimeout(() => this.startAttendanceMonitoring(), 10000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
@@ -57,38 +54,27 @@ class AttendanceNotificationService {
     } catch (error) {}
   }
 
-  async startBatchAttendanceCheck() {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
+  async startAttendanceMonitoring() {
+    // Initial check
+    await this.checkAllUsersAttendance();
 
+    // Set up interval for subsequent checks
+    setInterval(() => this.checkAllUsersAttendance(), this.checkInterval);
+  }
+
+  async checkAllUsersAttendance() {
     try {
       const users = await User.find({
         token: { $exists: true },
         attendance: { $exists: true },
       });
 
-      let index = 0;
-      const total = users.length;
-      const processBatch = async () => {
-        const batch = users.slice(index, index + this.batchSize);
-        await Promise.all(
-          batch.map(async (user) => {
-            await this.processUserAttendance(user);
-          })
-        );
-        index += this.batchSize;
-        if (index < total) {
-          setTimeout(processBatch, this.batchDelay);
-        } else {
-          setTimeout(() => {
-            this.isProcessing = false;
-            this.startBatchAttendanceCheck();
-          }, Math.max(0, 60000 - this.batchDelay * Math.ceil(total / this.batchSize)));
-        }
-      };
-      processBatch();
+      // Process each user in sequence
+      for (const user of users) {
+        await this.processUserAttendance(user);
+      }
     } catch (error) {
-      this.isProcessing = false;
+      console.error("Error checking attendance:", error.message);
     }
   }
 
