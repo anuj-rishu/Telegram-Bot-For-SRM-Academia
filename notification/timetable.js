@@ -1,6 +1,20 @@
 const schedule = require("node-schedule");
 const sessionManager = require("../utils/sessionManager");
 const apiService = require("../services/apiService");
+const winston = require("winston");
+
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp({
+      format: "YYYY-MM-DD HH:mm:ss",
+    }),
+    winston.format.printf(
+      (info) => `${info.timestamp} ${info.level}: ${info.message}`
+    )
+  ),
+  transports: [new winston.transports.Console()],
+});
 
 class NotificationService {
   constructor(bot) {
@@ -12,31 +26,48 @@ class NotificationService {
   }
 
   scheduleNotifications() {
-    schedule.scheduleJob("01 07 * * *", async () => {
+    schedule.scheduleJob("00 07 * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
         const userIds = Object.keys(sessions);
 
-        const BATCH_SIZE = 10;
+        const totalUsers = userIds.length;
+        const timeWindowMinutes = 20;
+        const batchSize = Math.ceil(totalUsers / timeWindowMinutes);
 
-        for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
-          const batch = userIds.slice(i, i + BATCH_SIZE);
+        logger.info(
+          `Scheduling notifications for ${totalUsers} users over ${timeWindowMinutes} minutes`
+        );
 
-          await Promise.all(
-            batch.map(async (userId) => {
-              try {
-                await this.sendDailySchedule(userId);
-              } catch (error) {}
-            })
-          );
+        for (let minute = 0; minute < timeWindowMinutes; minute++) {
+          const startIdx = minute * batchSize;
+          const endIdx = Math.min(startIdx + batchSize, totalUsers);
+          const currentBatch = userIds.slice(startIdx, endIdx);
 
-          if (i + BATCH_SIZE < userIds.length) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
+          if (currentBatch.length === 0) continue;
+
+          setTimeout(async () => {
+            logger.info(
+              `Processing batch at minute ${minute} with ${currentBatch.length} users`
+            );
+            await Promise.all(
+              currentBatch.map(async (userId) => {
+                try {
+                  await this.sendDailySchedule(userId);
+                } catch (error) {
+                  logger.error(
+                    `Error sending notification to user ${userId}: ${error.message}`
+                  );
+                }
+              })
+            );
+          }, minute * 60 * 1000);
         }
 
         this.sentNotifications.clear();
-      } catch (error) {}
+      } catch (error) {
+        logger.error(`Error in scheduleNotifications: ${error.message}`);
+      }
     });
   }
 
@@ -44,23 +75,36 @@ class NotificationService {
     schedule.scheduleJob("* * * * *", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
+        const userIds = Object.keys(sessions);
 
-        for (const userId of Object.keys(sessions)) {
-          if (this.processingUsers.has(userId)) {
-            continue;
+        const BATCH_SIZE = 25;
+
+        for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+          const batch = userIds.slice(i, i + BATCH_SIZE);
+
+          await Promise.all(
+            batch.map(async (userId) => {
+              if (this.processingUsers.has(userId)) {
+                return;
+              }
+
+              this.processingUsers.add(userId);
+
+              try {
+                await this.checkUpcomingClasses(userId);
+              } finally {
+                this.processingUsers.delete(userId);
+              }
+            })
+          );
+
+          if (i + BATCH_SIZE < userIds.length) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
           }
-
-          this.processingUsers.add(userId);
-
-          try {
-            await this.checkUpcomingClasses(userId);
-          } finally {
-            this.processingUsers.delete(userId);
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 100));
         }
-      } catch (error) {}
+      } catch (error) {
+        logger.error(`Error in scheduleClassReminders: ${error.message}`);
+      }
     });
   }
 
@@ -92,7 +136,11 @@ class NotificationService {
           )
         );
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(
+        `Error checking upcoming classes for user ${userId}: ${error.message}`
+      );
+    }
   }
 
   createNotificationKey(userId, classInfo, timeframe) {
@@ -169,7 +217,11 @@ class NotificationService {
           }
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(
+        `Error fetching attendance for user ${userId}: ${error.message}`
+      );
+    }
 
     const message = [
       `${urgencyEmoji} *Class Starting in ${timeText}!*`,
@@ -186,7 +238,36 @@ class NotificationService {
       });
 
       this.sentNotifications.set(notificationKey, new Date());
-    } catch (error) {}
+      logger.info(
+        `Sent urgent reminder to user ${userId} for ${classInfo.name}`
+      );
+    } catch (error) {
+      logger.error(
+        `Error sending urgent reminder to user ${userId}: ${error.message}`
+      );
+
+      if (
+        !error.message.includes("retry_after") &&
+        !error.message.includes("Too Many Requests")
+      ) {
+        setTimeout(async () => {
+          try {
+            await this.bot.telegram.sendMessage(userId, message, {
+              parse_mode: "Markdown",
+              disable_web_page_preview: true,
+            });
+            this.sentNotifications.set(notificationKey, new Date());
+            logger.info(
+              `Successfully retried urgent reminder to user ${userId}`
+            );
+          } catch (retryError) {
+            logger.error(
+              `Retry failed for user ${userId}: ${retryError.message}`
+            );
+          }
+        }, 3000);
+      }
+    }
   }
 
   async sendHourlyClassReminder(userId, classInfo, hours) {
@@ -216,7 +297,14 @@ class NotificationService {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-    } catch (error) {}
+      logger.info(
+        `Sent hourly reminder to user ${userId} for ${classInfo.name}`
+      );
+    } catch (error) {
+      logger.error(
+        `Error sending hourly reminder to user ${userId}: ${error.message}`
+      );
+    }
   }
 
   getDayGreeting() {
@@ -240,11 +328,7 @@ class NotificationService {
     if (!userId) throw new Error("Invalid user ID");
 
     const session = sessionManager.getSession(userId);
-    if (!session) {
-      return;
-    }
-
-    if (!session.token || !session.csrfToken) {
+    if (!session?.token || !session?.csrfToken) {
       return;
     }
 
@@ -262,21 +346,16 @@ class NotificationService {
       const greeting = this.getDayGreeting();
       const date = this.formatDate();
 
-      const headerMessage = [
+      // Combine messages
+      let completeMessage = [
         `🌟 *${greeting}!*`,
         `\n📅 *${date}*`,
         `\n📚 *Your Classes for Today:*`,
         todayData.dayOrder ? `Day Order: ${todayData.dayOrder}` : `🎉 Holiday!`,
+        "\n",
       ].join("\n");
 
-      await this.bot.telegram.sendMessage(userId, headerMessage, {
-        parse_mode: "Markdown",
-        disable_web_page_preview: true,
-      });
-
       if (todayData.classes && todayData.classes.length > 0) {
-        let classesMessage = "";
-
         const sortedClasses = [...todayData.classes].sort((a, b) => {
           return (
             this.convertTimeToMinutes(a.startTime) -
@@ -285,25 +364,46 @@ class NotificationService {
         });
 
         sortedClasses.forEach((classInfo) => {
-          classesMessage += `⏰ *${classInfo.startTime} - ${classInfo.endTime}*\n`;
-          classesMessage += `📚 ${classInfo.name} (${classInfo.courseType})\n`;
-          classesMessage += `🏛 Room: ${classInfo.roomNo || "N/A"}\n\n`;
-        });
-
-        await this.bot.telegram.sendMessage(userId, classesMessage, {
-          parse_mode: "Markdown",
-          disable_web_page_preview: true,
+          completeMessage += `\n⏰ *${classInfo.startTime} - ${classInfo.endTime}*\n`;
+          completeMessage += `📚 ${classInfo.name} (${classInfo.courseType})\n`;
+          completeMessage += `🏛 Room: ${classInfo.roomNo || "N/A"}\n`;
         });
       } else {
-        await this.bot.telegram.sendMessage(
-          userId,
-          "😴 No classes scheduled for today!",
-          {
-            parse_mode: "Markdown",
-          }
-        );
+        completeMessage += "\n😴 No classes scheduled for today!";
       }
-    } catch (error) {}
+
+      await this.bot.telegram.sendMessage(userId, completeMessage, {
+        parse_mode: "Markdown",
+        disable_web_page_preview: true,
+      });
+      logger.info(`Sent daily schedule to user ${userId}`);
+    } catch (error) {
+      logger.error(
+        `Error sending daily schedule to user ${userId}: ${error.message}`
+      );
+
+      if (
+        !error.message.includes("retry_after") &&
+        !error.message.includes("Too Many Requests")
+      ) {
+        setTimeout(async () => {
+          try {
+            await this.bot.telegram.sendMessage(
+              userId,
+              "🌟 *Good day!*\n\nYour daily schedule is available. Check your class details in the app.",
+              {
+                parse_mode: "Markdown",
+              }
+            );
+            logger.info(`Sent simplified daily schedule to user ${userId}`);
+          } catch (retryError) {
+            logger.error(
+              `Failed to send simplified daily schedule to user ${userId}: ${retryError.message}`
+            );
+          }
+        }, 5000);
+      }
+    }
   }
 
   convertTimeToMinutes(timeStr) {
