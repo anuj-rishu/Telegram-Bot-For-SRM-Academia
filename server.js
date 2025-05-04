@@ -6,15 +6,20 @@ const winston = require("winston");
 
 const logger = winston.createLogger({
   level: "error",
-  format: winston.format.simple(),
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.simple()
+  ),
   transports: [
     new winston.transports.Console({
-      silent: true,
+      silent: false,
     }),
   ],
 });
 
-process.on("unhandledRejection", (reason, promise) => {});
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error(`Unhandled Rejection: ${reason}`);
+});
 
 try {
   if (global.gc) {
@@ -36,12 +41,15 @@ setInterval(() => {
 async function startBot() {
   try {
     await connectDB();
+    global.botInstance = bot;
     await sessionManager.initializeSessions();
+    sessionManager.startPeriodicValidation(0.5);
     await bot.launch();
 
     process.once("SIGINT", () => bot.stop("SIGINT"));
     process.once("SIGTERM", () => bot.stop("SIGTERM"));
   } catch (err) {
+    logger.error(`Failed to start bot: ${err.message}`);
     process.exit(1);
   }
 }

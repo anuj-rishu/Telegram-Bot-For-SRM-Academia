@@ -43,6 +43,8 @@ const logger = winston.createLogger({
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
+global.botInstance = bot;
+
 const originalSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
 bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   try {
