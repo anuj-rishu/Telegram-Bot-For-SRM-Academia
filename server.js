@@ -43,7 +43,7 @@ async function startBot() {
     await connectDB();
     global.botInstance = bot;
     await sessionManager.initializeSessions();
-    sessionManager.startPeriodicValidation(0.5);
+    sessionManager.startPeriodicValidation(240); // 4 hours
     await bot.launch();
 
     process.once("SIGINT", () => bot.stop("SIGINT"));
