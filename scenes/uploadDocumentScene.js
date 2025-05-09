@@ -182,7 +182,7 @@ const uploadDocumentScene = new Scenes.WizardScene(
 
       const loader = await createLoader(
         ctx,
-        "📤 Downloading and uploading your document..."
+        "📤 Uploading your document..."
       );
 
       try {
