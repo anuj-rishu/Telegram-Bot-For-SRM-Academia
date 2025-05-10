@@ -1,16 +1,9 @@
-require("dd-trace").init({
-  env: process.env.NODE_ENV || "production",
-  service: "tele-bot",
-  logInjection: true,
-});
-
 require("dotenv").config();
 const bot = require("./bot");
 const connectDB = require("./config/db");
 const sessionManager = require("./utils/sessionManager");
 const winston = require("winston");
 
-// Create a logger instance
 const logger = winston.createLogger({
   level: "error",
   format: winston.format.combine(
@@ -24,12 +17,10 @@ const logger = winston.createLogger({
   ],
 });
 
-// Log unhandled rejections
 process.on("unhandledRejection", (reason, promise) => {
   logger.error(`Unhandled Rejection: ${reason}`);
 });
 
-// Try to enable garbage collection (if available)
 try {
   if (global.gc) {
     setInterval(() => {
@@ -47,7 +38,6 @@ setInterval(() => {
   }
 }, 60000);
 
-// Start the bot
 async function startBot() {
   try {
     await connectDB();
