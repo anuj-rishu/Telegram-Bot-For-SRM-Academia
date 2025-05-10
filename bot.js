@@ -84,7 +84,7 @@ bot.start((ctx) => {
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 
- // Notification services
+//  Notification services
 //  ***temp stop**
 // new NotificationService(bot);
 new MarksNotificationService(bot);
