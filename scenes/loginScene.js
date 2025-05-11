@@ -7,28 +7,68 @@ const logger = require("../utils/logger");
 const loginScene = new Scenes.WizardScene(
   "login",
   async (ctx) => {
-    ctx.wizard.state.isRelogin = false;
-    if (ctx.scene.state && ctx.scene.state.expiredToken) {
-      ctx.wizard.state.isRelogin = true;
-    }
+    try {
+      const userId = ctx.from.id;
+      logger.info(`Login attempt from user ${userId}`);
 
-    let welcomeText = "Please enter your SRM username/email:";
-    if (ctx.wizard.state.isRelogin) {
-      welcomeText = "Your session has expired. Please enter your SRM username/email to reconnect:";
-    }
+      const session = sessionManager.getSession(userId);
+      if (session && session.token) {
+        logger.info(`User ${userId} already has active session`);
+        await ctx.reply(
+          "You are already logged in. Please use /logout first if you want to login with a different account."
+        );
+        return ctx.scene.leave();
+      }
 
-    ctx.wizard.state.startMessage = await ctx.reply(welcomeText);
-    return ctx.wizard.next();
+      const user = await User.findOne({ telegramId: userId });
+      if (user && user.token && user.loginStatus === "active") {
+        logger.info(
+          `User ${userId} has active account record but no session - restoring session`
+        );
+
+        await sessionManager.setSession(userId, {
+          token: user.token,
+          csrfToken: user.token,
+        });
+        await ctx.reply(
+          "You are already logged in. Please use /logout first if you want to login with a different account."
+        );
+        return ctx.scene.leave();
+      }
+
+      ctx.wizard.state.isRelogin = false;
+      if (ctx.scene.state && ctx.scene.state.expiredToken) {
+        ctx.wizard.state.isRelogin = true;
+      }
+
+      let welcomeText = "Please enter your SRM username/email:";
+      if (ctx.wizard.state.isRelogin) {
+        welcomeText =
+          "Your session has expired. Please enter your SRM username/email to reconnect:";
+      }
+
+      ctx.wizard.state.startMessage = await ctx.reply(welcomeText);
+      return ctx.wizard.next();
+    } catch (error) {
+      logger.error(`Error in login check: ${error.message}`);
+      await ctx.reply(
+        "There was an error checking your login status. Please try again later."
+      );
+      return ctx.scene.leave();
+    }
   },
   async (ctx) => {
     ctx.wizard.state.usernameMessage = ctx.message;
     ctx.wizard.state.username = ctx.message.text;
-    ctx.wizard.state.passwordPrompt = await ctx.reply("Please enter your password:");
+    ctx.wizard.state.passwordPrompt = await ctx.reply(
+      "Please enter your password:"
+    );
     return ctx.wizard.next();
   },
   async (ctx) => {
     ctx.wizard.state.passwordMessage = ctx.message;
-    const { username, startMessage, usernameMessage, passwordPrompt } = ctx.wizard.state;
+    const { username, startMessage, usernameMessage, passwordPrompt } =
+      ctx.wizard.state;
     const password = ctx.message.text;
 
     try {
@@ -41,16 +81,22 @@ const loginScene = new Scenes.WizardScene(
           ctx.telegram.deleteMessage(ctx.chat.id, startMessage.message_id),
           ctx.telegram.deleteMessage(ctx.chat.id, usernameMessage.message_id),
           ctx.telegram.deleteMessage(ctx.chat.id, passwordPrompt.message_id),
-          ctx.telegram.deleteMessage(ctx.chat.id, ctx.wizard.state.passwordMessage.message_id),
+          ctx.telegram.deleteMessage(
+            ctx.chat.id,
+            ctx.wizard.state.passwordMessage.message_id
+          ),
           ctx.telegram.deleteMessage(ctx.chat.id, processingMsg.message_id),
         ]);
       } catch (deleteError) {}
 
       if (
         response.data &&
-        (response.data.error === true || (response.data.message && isErrorMessage(response.data.message)))
+        (response.data.error === true ||
+          (response.data.message && isErrorMessage(response.data.message)))
       ) {
-        await ctx.reply("❌ Login failed: Wrong username or password. Please try again.");
+        await ctx.reply(
+          "❌ Login failed: Wrong username or password. Please try again."
+        );
         return ctx.scene.leave();
       }
 
@@ -64,7 +110,8 @@ const loginScene = new Scenes.WizardScene(
           if (
             typeof response.data[key] === "string" &&
             response.data[key].length >= 20 &&
-            (response.data[key].includes(".") || response.data[key].includes("-"))
+            (response.data[key].includes(".") ||
+              response.data[key].includes("-"))
           ) {
             token = response.data[key];
             break;
@@ -73,7 +120,9 @@ const loginScene = new Scenes.WizardScene(
       }
 
       if (!token) {
-        await ctx.reply("❌ Login failed: No authentication token received. Please try again.");
+        await ctx.reply(
+          "❌ Login failed: No authentication token received. Please try again."
+        );
         logger.error(`No token found in login response for user ${userId}`);
         return ctx.scene.leave();
       }
@@ -81,14 +130,19 @@ const loginScene = new Scenes.WizardScene(
       const fetchingMsg = await ctx.reply("Verifying credentials...");
 
       try {
-        const testResponse = await apiService.makeAuthenticatedRequest("/user", {
-          token,
-          csrfToken: token
-        });
+        const testResponse = await apiService.makeAuthenticatedRequest(
+          "/user",
+          {
+            token,
+            csrfToken: token,
+          }
+        );
 
         if (!testResponse.data || testResponse.data.error) {
           await ctx.telegram.deleteMessage(ctx.chat.id, fetchingMsg.message_id);
-          await ctx.reply("❌ Login failed: Invalid credentials. Please try again.");
+          await ctx.reply(
+            "❌ Login failed: Invalid credentials. Please try again."
+          );
           return ctx.scene.leave();
         }
 
@@ -104,11 +158,21 @@ const loginScene = new Scenes.WizardScene(
           "Fetching and saving your academic data..."
         );
 
-        const [userResponse, marksResponse, attendanceResponse] = await Promise.all([
-          apiService.makeAuthenticatedRequest("/user", { token, csrfToken: token }),
-          apiService.makeAuthenticatedRequest("/marks", { token, csrfToken: token }),
-          apiService.makeAuthenticatedRequest("/attendance", { token, csrfToken: token }),
-        ]);
+        const [userResponse, marksResponse, attendanceResponse] =
+          await Promise.all([
+            apiService.makeAuthenticatedRequest("/user", {
+              token,
+              csrfToken: token,
+            }),
+            apiService.makeAuthenticatedRequest("/marks", {
+              token,
+              csrfToken: token,
+            }),
+            apiService.makeAuthenticatedRequest("/attendance", {
+              token,
+              csrfToken: token,
+            }),
+          ]);
 
         try {
           await ctx.telegram.deleteMessage(ctx.chat.id, fetchingMsg.message_id);
@@ -145,10 +209,16 @@ const loginScene = new Scenes.WizardScene(
         );
 
         if (ctx.wizard.state.isRelogin) {
-          await ctx.reply("✅ Re-authentication successful! Your session has been restored.");
-          await ctx.reply("All notification services are now active again. You can continue using the bot commands from Menu ≡");
+          await ctx.reply(
+            "✅ Re-authentication successful! Your session has been restored."
+          );
+          await ctx.reply(
+            "All notification services are now active again. You can continue using the bot commands from Menu ≡"
+          );
         } else {
-          await ctx.reply("✅ Login successful! You can now use the commands from Menu ≡ to fetch your data.");
+          await ctx.reply(
+            "✅ Login successful! You can now use the commands from Menu ≡ to fetch your data."
+          );
         }
       } catch (error) {
         try {
@@ -162,11 +232,19 @@ const loginScene = new Scenes.WizardScene(
           error.message?.includes("authentication") ||
           error.message === "TOKEN_EXPIRED"
         ) {
-          await ctx.reply("❌ Login failed: Invalid credentials. Please try again.");
-          logger.error(`Authentication error for user ${userId}: ${error.message}`);
+          await ctx.reply(
+            "❌ Login failed: Invalid credentials. Please try again."
+          );
+          logger.error(
+            `Authentication error for user ${userId}: ${error.message}`
+          );
         } else {
-          await ctx.reply("❌ Login failed: Could not verify your credentials. Please try again.");
-          logger.error(`Unknown error during login for user ${userId}: ${error.message}`);
+          await ctx.reply(
+            "❌ Login failed: Could not verify your credentials. Please try again."
+          );
+          logger.error(
+            `Unknown error during login for user ${userId}: ${error.message}`
+          );
         }
 
         return ctx.scene.leave();
@@ -176,15 +254,29 @@ const loginScene = new Scenes.WizardScene(
     } catch (error) {
       try {
         await Promise.all([
-          ctx.telegram.deleteMessage(ctx.chat.id, ctx.wizard.state.startMessage.message_id),
-          ctx.telegram.deleteMessage(ctx.chat.id, ctx.wizard.state.usernameMessage.message_id),
-          ctx.telegram.deleteMessage(ctx.chat.id, ctx.wizard.state.passwordPrompt.message_id),
-          ctx.telegram.deleteMessage(ctx.chat.id, ctx.wizard.state.passwordMessage.message_id),
+          ctx.telegram.deleteMessage(
+            ctx.chat.id,
+            ctx.wizard.state.startMessage.message_id
+          ),
+          ctx.telegram.deleteMessage(
+            ctx.chat.id,
+            ctx.wizard.state.usernameMessage.message_id
+          ),
+          ctx.telegram.deleteMessage(
+            ctx.chat.id,
+            ctx.wizard.state.passwordPrompt.message_id
+          ),
+          ctx.telegram.deleteMessage(
+            ctx.chat.id,
+            ctx.wizard.state.passwordMessage.message_id
+          ),
         ]);
       } catch (deleteError) {}
 
       if (error.response?.status === 401 || error.response?.status === 403) {
-        await ctx.reply("❌ Login failed: Wrong username or password. Please try again.");
+        await ctx.reply(
+          "❌ Login failed: Wrong username or password. Please try again."
+        );
       } else if (error.response?.data?.error) {
         const errorMsg =
           typeof error.response.data.error === "string"
@@ -192,14 +284,22 @@ const loginScene = new Scenes.WizardScene(
             : "";
 
         if (isErrorMessage(errorMsg)) {
-          await ctx.reply("❌ Login failed: Wrong username or password. Please try again.");
+          await ctx.reply(
+            "❌ Login failed: Wrong username or password. Please try again."
+          );
         } else {
-          await ctx.reply("❌ Login failed. Please check your credentials and try again.");
+          await ctx.reply(
+            "❌ Login failed. Please check your credentials and try again."
+          );
         }
         logger.error(`Login API error for user ${ctx.from.id}: ${errorMsg}`);
       } else {
-        await ctx.reply("❌ Login failed. Please check your credentials and try again.");
-        logger.error(`General login error for user ${ctx.from.id}: ${error.message}`);
+        await ctx.reply(
+          "❌ Login failed. Please check your credentials and try again."
+        );
+        logger.error(
+          `General login error for user ${ctx.from.id}: ${error.message}`
+        );
       }
 
       return ctx.scene.leave();
@@ -211,8 +311,17 @@ function isErrorMessage(message) {
   if (!message) return false;
 
   const errorKeywords = [
-    "invalid", "incorrect", "wrong", "authentication", "fail", 
-    "error", "credentials", "expired", "timeout", "denied", "unauthorized"
+    "invalid",
+    "incorrect",
+    "wrong",
+    "authentication",
+    "fail",
+    "error",
+    "credentials",
+    "expired",
+    "timeout",
+    "denied",
+    "unauthorized",
   ];
   const lowerMsg = message.toLowerCase();
 
