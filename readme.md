@@ -9,12 +9,16 @@ A Telegram bot that provides SRM University students with easy access to their a
 - 🎓 **Academic Marks**: View test scores and overall marks for all subjects.
 - 📚 **Course Information**: List all enrolled courses with details.
 - ⏰ **Timetable Access**: Get your complete weekly class schedule.
-- 📅 **Today's Classes**: Quick view of classes scheduled for the day.
+- 📅 **Class Schedule**: View classes for today, tomorrow, and day after.
 - 🔔 **Real-time Notifications**:
   - Daily morning schedule notification at 7:01 AM.
   - Class reminders 30 minutes and 5 minutes before start.
   - Instant notifications when marks or attendance are updated.
 - 👤 **User Profile**: View your academic profile information.
+- ✅ **Task Management**: Create, view, complete, and delete tasks with reminders.
+- 🔍 **Lost & Found**: Report lost items and search through the lost items portal.
+- 📁 **Document Vault**: Upload and access your important documents anytime.
+- 🤖 **AI Assistant**: Chat with AI for attendance prediction and more.
 
 ## 🚀 Installation
 
@@ -55,9 +59,20 @@ npm start
 - `/marks` - View your academic marks and test scores.
 - `/timetable` - Get your complete weekly timetable.
 - `/todaysclass` - View today's scheduled classes.
+- `/tomorrowclass` - View tomorrow's scheduled classes.
+- `/dayafterclass` - View classes scheduled for day after tomorrow.
 - `/user` - View your profile information.
 - `/courses` - List all enrolled courses.
 - `/calendar` - Check the academic calendar.
+- `/addtask` - Create a new task with reminder.
+- `/tasks` - View your tasks.
+- `/complete` - Mark a task as complete.
+- `/deletetasks` - Delete multiple tasks.
+- `/reportlost` - Report a lost item.
+- `/finditem` - Search for lost items through the portal.
+- `/uploaddoc` - Upload documents to your personal vault.
+- `/mydocs` - Access your stored documents.
+- `/checki` - Chat with AI for attendance prediction.
 - `/logout` - Log out from your account.
 - `/help` - Show help message with all commands.
 
@@ -69,8 +84,8 @@ The bot is structured with the following components:
 - **Services**: Manage API communications and authentication.
 - **Models**: Define data structures for MongoDB.
 - **Middleware**: Implement auth checks and other processing.
-- **Scenes**: Handle multi-step dialogues like login.
-- **Notifications**: Real-time updates for marks, attendance, and classes.
+- **Scenes**: Handle multi-step dialogues like login, task creation, and document upload.
+- **Notifications**: Real-time updates for marks, attendance, classes, and tasks.
 
 ## 📚 Tech Stack
 
@@ -80,20 +95,24 @@ The bot is structured with the following components:
 - **Mongoose** - ODM for MongoDB.
 - **Axios** - HTTP Client for API calls.
 - **Node-Schedule** - Task Scheduling for notifications.
+- **Winston** - Logging service.
+- **Groq** - AI service integration for attendance prediction.
 
 ## ⏲️ Notification System
 
-The bot includes three notification services:
+The bot includes several notification services:
 
 - **Timetable Notifications**: Daily schedule and class reminders.
 - **Marks Update**: Real-time alerts when grades are updated.
 - **Attendance Update**: Real-time alerts when attendance is updated.
+- **Task Reminders**: Notifications for upcoming tasks and deadlines.
 
 ## 🔐 Security
 
 - Credentials are deleted from chat after login.
 - Authentication tokens are stored securely.
 - User sessions are validated before accessing data.
+- Documents are stored securely in the vault service.
 
 ## 📋 Dependencies
 
@@ -113,6 +132,7 @@ This project follows a modular structure:
 - `services/` - External API communication.
 - `utils/` - Helper functions.
 - `notification/` - Notification services.
+- `config/` - Configuration settings.
 
 ## 🧑‍💻 Author
 
