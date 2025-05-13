@@ -88,7 +88,8 @@ bot.command("login", (ctx) => ctx.scene.enter("login"));
 //  ***temp stop**
 // new NotificationService(bot);
 new MarksNotificationService(bot);
-new AttendanceNotificationService(bot);
+//  ***temp stop**
+// new AttendanceNotificationService(bot);
 new TaskNotificationService(bot);
 
 attendancePredictionController.initGroqService(bot);
