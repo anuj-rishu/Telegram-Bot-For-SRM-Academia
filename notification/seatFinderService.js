@@ -1,14 +1,14 @@
-const axios = require('axios');
-const User = require('../model/user');
-const winston = require('winston');
-const mongoose = require('mongoose');
-const config = require('../config/config');
+const axios = require("axios");
+const User = require("../model/user");
+const winston = require("winston");
+const mongoose = require("mongoose");
+const config = require("../config/config");
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: "info",
   format: winston.format.combine(
     winston.format.timestamp({
-      format: 'YYYY-MM-DD HH:mm:ss',
+      format: "YYYY-MM-DD HH:mm:ss",
     }),
     winston.format.printf(
       (info) => `${info.timestamp} ${info.level}: ${info.message}`
@@ -21,8 +21,8 @@ class SeatFinderService {
   constructor(bot) {
     this.bot = bot;
     this.apiUrl = config.SEAT_FINDER_API_URL;
-    this.startDate = new Date('2025-05-16');
-    this.endDate = new Date('2025-06-10');
+    this.startDate = new Date("2025-05-16");
+    this.endDate = new Date("2025-06-10");
     this.checkInterval = 5 * 60 * 1000;
     this.batchSize = 10;
     this.batchDelay = 5000;
@@ -33,7 +33,7 @@ class SeatFinderService {
 
   async initService() {
     if (mongoose.connection.readyState !== 1) {
-      mongoose.connection.once('connected', () => {
+      mongoose.connection.once("connected", () => {
         this.startSeatCheck();
       });
     } else {
@@ -46,32 +46,32 @@ class SeatFinderService {
   }
 
   sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async checkSeatsForAllUsers() {
     if (this.isProcessing) {
-      logger.info('Seat check already in progress, skipping this run');
+      logger.info("Seat check already in progress, skipping this run");
       return;
     }
 
     this.isProcessing = true;
-    logger.info('Starting seat check process');
+    logger.info("Starting seat check process");
 
     try {
       if (mongoose.connection.readyState !== 1) {
-        logger.info('Database not connected, will retry later');
+        logger.info("Database not connected, will retry later");
         this.isProcessing = false;
         setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
       }
 
       const users = await User.find({
-        regNumber: { $exists: true, $ne: null }
+        regNumber: { $exists: true, $ne: null },
       });
 
       if (users.length === 0) {
-        logger.info('No users with registration numbers found');
+        logger.info("No users with registration numbers found");
         this.isProcessing = false;
         setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
@@ -79,8 +79,8 @@ class SeatFinderService {
 
       logger.info(`Checking seats for ${users.length} users`);
       const datesToCheck = this.getDateRange();
-      logger.info(`Checking dates: ${datesToCheck.join(', ')}`);
-      
+      logger.info(`Checking dates: ${datesToCheck.join(", ")}`);
+
       let index = 0;
       const total = users.length;
 
@@ -88,18 +88,26 @@ class SeatFinderService {
         const userBatch = users.slice(index, index + this.batchSize);
         const batchNumber = Math.floor(index / this.batchSize) + 1;
         const totalBatches = Math.ceil(total / this.batchSize);
-        
-        logger.info(`Processing batch ${batchNumber} of ${totalBatches} with ${userBatch.length} users`);
-        logger.info(`Users in batch ${batchNumber}: ${userBatch.map(u => `${u.name || 'Unknown'} (${u.regNumber})`).join(', ')}`);
-        
+
+        logger.info(
+          `Processing batch ${batchNumber} of ${totalBatches} with ${userBatch.length} users`
+        );
+        logger.info(
+          `Users in batch ${batchNumber}: ${userBatch
+            .map((u) => `${u.name || "Unknown"} (${u.regNumber})`)
+            .join(", ")}`
+        );
+
         let seatsFound = 0;
         let notificationsSkipped = 0;
         let notificationsSent = 0;
-        
+
         for (const user of userBatch) {
-          const userName = user.name || 'Unknown';
-          logger.info(`Checking seats for user: ${userName} (${user.regNumber})`);
-          
+          const userName = user.name || "Unknown";
+          logger.info(
+            `Checking seats for user: ${userName} (${user.regNumber})`
+          );
+
           for (const dateStr of datesToCheck) {
             try {
               const result = await this.checkSeatForUserOnDate(user, dateStr);
@@ -117,24 +125,28 @@ class SeatFinderService {
             await this.sleep(this.apiDelay);
           }
         }
-        
-        logger.info(`Batch ${batchNumber} results: ${seatsFound} seats found, ${notificationsSent} notifications sent, ${notificationsSkipped} skipped (already notified)`);
-        
+
+        logger.info(
+          `Batch ${batchNumber} results: ${seatsFound} seats found, ${notificationsSent} notifications sent, ${notificationsSkipped} skipped (already notified)`
+        );
+
         index += this.batchSize;
-        
+
         if (index < total) {
-          logger.info(`Completed batch ${batchNumber}/${totalBatches}, waiting before processing next batch`);
+          logger.info(
+            `Completed batch ${batchNumber}/${totalBatches}, waiting before processing next batch`
+          );
           setTimeout(processBatch, this.batchDelay);
         } else {
-          logger.info('All batches completed successfully');
+          logger.info("All batches completed successfully");
           this.isProcessing = false;
           setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         }
       };
-      
+
       processBatch();
     } catch (error) {
-      logger.info('Error occurred during seat check process');
+      logger.info("Error occurred during seat check process");
       this.isProcessing = false;
       setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
     }
@@ -143,80 +155,92 @@ class SeatFinderService {
   getDateRange() {
     const dates = [];
     const now = new Date();
-    
-    
+
     if (now > this.endDate) {
       return dates;
     }
-    
-  
-    let currentDate = new Date(Math.max(now, this.startDate));
-    
 
-    for (let i = 0; i < 3; i++) {
-      
-      if (currentDate > this.endDate) {
-        break;
-      }
-      
-      const day = currentDate.getDate().toString().padStart(2, '0');
-      const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+    let currentDate = new Date(Math.max(now, this.startDate));
+
+    if (currentDate <= this.endDate) {
+      const day = currentDate.getDate().toString().padStart(2, "0");
+      const month = (currentDate.getMonth() + 1).toString().padStart(2, "0");
       const year = currentDate.getFullYear();
       dates.push(`${day}/${month}/${year}`);
-
-
-      currentDate.setDate(currentDate.getDate() + 1);
     }
-    
+
+    currentDate.setDate(currentDate.getDate() + 1);
+
+    if (currentDate <= this.endDate) {
+      const day = currentDate.getDate().toString().padStart(2, "0");
+      const month = (currentDate.getMonth() + 1).toString().padStart(2, "0");
+      const year = currentDate.getFullYear();
+      dates.push(`${day}/${month}/${year}`);
+    }
+
     return dates;
   }
 
   async checkSeatForUserOnDate(user, dateStr) {
     if (!user.regNumber) return { seatFound: false };
-    const result = { seatFound: false, notificationSent: false, alreadyNotified: false };
+    const result = {
+      seatFound: false,
+      notificationSent: false,
+      alreadyNotified: false,
+    };
 
     try {
       const response = await axios.post(this.apiUrl, {
         date: dateStr,
-        registerNumber: user.regNumber
+        registerNumber: user.regNumber,
       });
 
       if (response.data && response.data.success && response.data.seatDetails) {
         const seatDetails = response.data.seatDetails;
         result.seatFound = true;
-        
+
         const seatId = [
           user.regNumber.trim().toLowerCase(),
           dateStr.trim(),
-          (seatDetails.venue || '').trim().toLowerCase(),
-          (seatDetails.roomInfo || '').trim().toLowerCase()
-        ].join(':');
+          (seatDetails.venue || "").trim().toLowerCase(),
+          (seatDetails.roomInfo || "").trim().toLowerCase(),
+        ].join(":");
 
         if (user.notifiedSeats && user.notifiedSeats.includes(seatId)) {
-          const userName = user.name || 'Unknown';
-          logger.info(`Seat already notified for ${userName} (${user.regNumber}) on ${dateStr} at ${seatDetails.venue}`);
+          const userName = user.name || "Unknown";
+          logger.info(
+            `Seat already notified for ${userName} (${user.regNumber}) on ${dateStr} at ${seatDetails.venue}`
+          );
           result.alreadyNotified = true;
           return result;
         }
 
-        const userName = user.name || 'Unknown';
-        logger.info(`🔔 NEW SEAT found for user [${userName}] with reg# ${user.regNumber} on ${dateStr} at ${seatDetails.venue} room ${seatDetails.roomInfo}`);
+        const userName = user.name || "Unknown";
+        logger.info(
+          `🔔 NEW SEAT found for user [${userName}] with reg# ${user.regNumber} on ${dateStr} at ${seatDetails.venue} room ${seatDetails.roomInfo}`
+        );
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
         await User.updateOne(
           { _id: user._id },
           { $addToSet: { notifiedSeats: seatId } }
         );
-        
-        logger.info(`✅ NOTIFICATION SENT to user [${userName}] (${user.regNumber}) about seat allocation at ${seatDetails.venue}`);
+
+        logger.info(
+          `✅ NOTIFICATION SENT to user [${userName}] (${user.regNumber}) about seat allocation at ${seatDetails.venue}`
+        );
         result.notificationSent = true;
       } else {
-        const userName = user.name || 'Unknown';
-        logger.info(`No seat found for ${userName} (${user.regNumber}) on ${dateStr}`);
+        const userName = user.name || "Unknown";
+        logger.info(
+          `No seat found for ${userName} (${user.regNumber}) on ${dateStr}`
+        );
       }
     } catch (error) {
-      const userName = user.name || 'Unknown';
-      logger.info(`Error checking seat for ${userName} (${user.regNumber}) on ${dateStr}`);
+      const userName = user.name || "Unknown";
+      logger.info(
+        `Error checking seat for ${userName} (${user.regNumber}) on ${dateStr}`
+      );
     }
 
     return result;
@@ -228,18 +252,22 @@ class SeatFinderService {
         `🎓 *Exam Seat Allocation Found!* 🎓`,
         `\nYour exam seat has been allocated:`,
         `\n🏫 *Venue:* ${seatDetails.venue.toUpperCase()}`,
-        `⏰ *Session:* ${seatDetails.session === 'FN' ? 'Morning' : 'Afternoon'}`,
+        `⏰ *Session:* ${
+          seatDetails.session === "FN" ? "Morning" : "Afternoon"
+        }`,
         `🪑 *Seat Number:* ${seatDetails.seatNo}`,
         `📝 *Register Number:* ${seatDetails.registerNumber}`,
-        `\n📍 *Location:* ${seatDetails.roomInfo}`
-      ].join('\n');
+        `\n📍 *Location:* ${seatDetails.roomInfo}`,
+      ].join("\n");
 
       const result = await this.bot.telegram.sendMessage(telegramId, message, {
-        parse_mode: 'Markdown',
-        disable_web_page_preview: true
+        parse_mode: "Markdown",
+        disable_web_page_preview: true,
       });
 
-      logger.info(`Telegram notification delivered successfully to user ${seatDetails.registerNumber} (ID: ${telegramId})`);
+      logger.info(
+        `Telegram notification delivered successfully to user ${seatDetails.registerNumber} (ID: ${telegramId})`
+      );
       return result;
     } catch (error) {
       logger.info(`Failed to send notification to Telegram ID: ${telegramId}`);
