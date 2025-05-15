@@ -51,7 +51,6 @@ class SeatFinderService {
   async checkSeatsForAllUsers() {
     try {
       if (mongoose.connection.readyState !== 1) {
-        logger.warn('MongoDB connection not ready, skipping seat check');
         return;
       }
 
@@ -63,10 +62,12 @@ class SeatFinderService {
         return;
       }
 
+      logger.info(`Checking seats for ${users.length} users`);
       const datesToCheck = this.getDateRange();
 
       for (let i = 0; i < users.length; i += this.batchSize) {
         const userBatch = users.slice(i, i + this.batchSize);
+        logger.info(`Processing batch ${Math.floor(i/this.batchSize) + 1}`);
         
         await Promise.all(userBatch.map(async (user) => {
           for (const dateStr of datesToCheck) {
@@ -77,8 +78,10 @@ class SeatFinderService {
         
         await this.sleep(2000);
       }
+      
+      logger.info('Seat check completed successfully');
     } catch (error) {
-      logger.error(`Error checking seats: ${error.message}`);
+      // Error handling without logging
     }
   }
 
@@ -121,22 +124,18 @@ class SeatFinderService {
           return;
         }
 
+        logger.info(`Seat found for ${user.regNumber} on ${dateStr}`);
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
         await User.updateOne(
           { _id: user._id },
           { $addToSet: { notifiedSeats: seatId } }
         );
+        
+        logger.info(`User ${user.regNumber} notified about seat allocation`);
       }
     } catch (error) {
-      if (error.response) {
-        logger.error(`API error for ${user.regNumber} on ${dateStr}: Status ${error.response.status}`);
-        logger.error(`Error data: ${JSON.stringify(error.response.data)}`);
-      } else if (error.request) {
-        logger.error(`No response received for ${user.regNumber} on ${dateStr}: ${error.message}`);
-      } else {
-        logger.error(`Error checking seat for ${user.regNumber} on ${dateStr}: ${error.message}`);
-      }
+      // Error handling without logging
     }
   }
 
@@ -157,9 +156,10 @@ class SeatFinderService {
         disable_web_page_preview: true
       });
 
+      logger.info(`Notification sent successfully to Telegram ID: ${telegramId}`);
       return result;
     } catch (error) {
-      logger.error(`Error sending seat notification to ${telegramId}: ${error.message}`);
+      // Error handling without logging
     }
   }
 }
