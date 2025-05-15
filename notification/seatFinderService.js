@@ -24,8 +24,10 @@ class SeatFinderService {
     this.startDate = new Date('2025-05-16');
     this.endDate = new Date('2025-06-10');
     this.checkInterval = 5 * 60 * 1000;
-    this.batchSize = 50;
+    this.batchSize = 10;
+    this.batchDelay = 5000;
     this.apiDelay = 500;
+    this.isProcessing = false;
     this.initService();
   }
 
@@ -40,8 +42,7 @@ class SeatFinderService {
   }
 
   async startSeatCheck() {
-    await this.checkSeatsForAllUsers();
-    setInterval(() => this.checkSeatsForAllUsers(), this.checkInterval);
+    this.checkSeatsForAllUsers();
   }
 
   sleep(ms) {
@@ -49,8 +50,19 @@ class SeatFinderService {
   }
 
   async checkSeatsForAllUsers() {
+    if (this.isProcessing) {
+      logger.info('Seat check already in progress, skipping this run');
+      return;
+    }
+
+    this.isProcessing = true;
+    logger.info('Starting seat check process');
+
     try {
       if (mongoose.connection.readyState !== 1) {
+        logger.info('Database not connected, will retry later');
+        this.isProcessing = false;
+        setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
       }
 
@@ -59,31 +71,48 @@ class SeatFinderService {
       });
 
       if (users.length === 0) {
+        logger.info('No users with registration numbers found');
+        this.isProcessing = false;
+        setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
       }
 
       logger.info(`Checking seats for ${users.length} users`);
       const datesToCheck = this.getDateRange();
+      let index = 0;
+      const total = users.length;
 
-      for (let i = 0; i < users.length; i += this.batchSize) {
-        const userBatch = users.slice(i, i + this.batchSize);
-        const batchNumber = Math.floor(i/this.batchSize) + 1;
-        const userRegNumbers = userBatch.map(u => u.regNumber).join(', ');
-        logger.info(`Processing batch ${batchNumber} with users: ${userRegNumbers}`);
+      const processBatch = async () => {
+        const userBatch = users.slice(index, index + this.batchSize);
+        const batchNumber = Math.floor(index / this.batchSize) + 1;
+        const userNames = userBatch.map(u => `${u.name || 'Unknown'} (${u.regNumber})`).join(', ');
         
-        await Promise.all(userBatch.map(async (user) => {
+        logger.info(`Processing batch ${batchNumber} of ${Math.ceil(total / this.batchSize)} with users: ${userNames}`);
+        
+        for (const user of userBatch) {
           for (const dateStr of datesToCheck) {
             await this.checkSeatForUserOnDate(user, dateStr);
             await this.sleep(this.apiDelay);
           }
-        }));
+        }
         
-        await this.sleep(2000);
-      }
+        index += this.batchSize;
+        
+        if (index < total) {
+          logger.info(`Completed batch ${batchNumber}, waiting before processing next batch`);
+          setTimeout(processBatch, this.batchDelay);
+        } else {
+          logger.info('All batches completed successfully');
+          this.isProcessing = false;
+          setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
+        }
+      };
       
-      logger.info('Seat check completed successfully');
+      processBatch();
     } catch (error) {
-      // Error handling without logging
+      logger.info('Error occurred during seat check process');
+      this.isProcessing = false;
+      setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
     }
   }
 
