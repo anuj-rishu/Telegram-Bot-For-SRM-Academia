@@ -143,17 +143,31 @@ class SeatFinderService {
   getDateRange() {
     const dates = [];
     const now = new Date();
+    
+    
+    if (now > this.endDate) {
+      return dates;
+    }
+    
+  
     let currentDate = new Date(Math.max(now, this.startDate));
+    
 
-    while (currentDate <= this.endDate) {
+    for (let i = 0; i < 3; i++) {
+      
+      if (currentDate > this.endDate) {
+        break;
+      }
+      
       const day = currentDate.getDate().toString().padStart(2, '0');
       const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
       const year = currentDate.getFullYear();
       dates.push(`${day}/${month}/${year}`);
 
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
-
+    
     return dates;
   }
 
