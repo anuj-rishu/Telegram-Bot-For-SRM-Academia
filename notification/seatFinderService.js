@@ -67,7 +67,9 @@ class SeatFinderService {
 
       for (let i = 0; i < users.length; i += this.batchSize) {
         const userBatch = users.slice(i, i + this.batchSize);
-        logger.info(`Processing batch ${Math.floor(i/this.batchSize) + 1}`);
+        const batchNumber = Math.floor(i/this.batchSize) + 1;
+        const userRegNumbers = userBatch.map(u => u.regNumber).join(', ');
+        logger.info(`Processing batch ${batchNumber} with users: ${userRegNumbers}`);
         
         await Promise.all(userBatch.map(async (user) => {
           for (const dateStr of datesToCheck) {
@@ -124,7 +126,8 @@ class SeatFinderService {
           return;
         }
 
-        logger.info(`Seat found for ${user.regNumber} on ${dateStr}`);
+        const userName = user.name || 'Unknown';
+        logger.info(`Seat found for user [${userName}] with reg# ${user.regNumber} on ${dateStr} at ${seatDetails.venue} room ${seatDetails.roomInfo}`);
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
         await User.updateOne(
@@ -132,7 +135,7 @@ class SeatFinderService {
           { $addToSet: { notifiedSeats: seatId } }
         );
         
-        logger.info(`User ${user.regNumber} notified about seat allocation`);
+        logger.info(`User [${userName}] (${user.regNumber}) notified about seat allocation at ${seatDetails.venue}`);
       }
     } catch (error) {
       // Error handling without logging
@@ -156,7 +159,7 @@ class SeatFinderService {
         disable_web_page_preview: true
       });
 
-      logger.info(`Notification sent successfully to Telegram ID: ${telegramId}`);
+      logger.info(`Notification sent successfully to user ${seatDetails.registerNumber} (Telegram ID: ${telegramId})`);
       return result;
     } catch (error) {
       // Error handling without logging
