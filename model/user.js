@@ -61,6 +61,11 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // field to track seat notifications
+    notifiedSeats: {
+      type: [String], 
+      default: [],
+    },
   },
   {
     timestamps: true,

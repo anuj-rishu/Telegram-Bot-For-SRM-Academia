@@ -4,4 +4,5 @@ module.exports = {
   GROQ_API_KEY: process.env.GROQ_API_KEY,
   LOST_ITEM_API_URL: process.env.LOST_ITEM_API_URL,
   VAULTIFY_API_URL: process.env.VAULTIFY_API_URL,
+  SEAT_FINDER_API_URL: process.env.SEAT_FINDER_API_URL,
 };

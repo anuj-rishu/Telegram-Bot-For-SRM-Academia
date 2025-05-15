@@ -29,6 +29,8 @@ const attendancePredictionController = require("./controllers/attendancePredicti
 const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 const documentController = require("./controllers/documentController");
 
+const SeatFinderService = require("./notification/seatFinderService");
+
 const winston = require("winston");
 
 const logger = winston.createLogger({
@@ -91,6 +93,9 @@ new MarksNotificationService(bot);
 //  ***temp stop**
 // new AttendanceNotificationService(bot);
 new TaskNotificationService(bot);
+
+//seat allocation
+new SeatFinderService(bot);
 
 attendancePredictionController.initGroqService(bot);
 
