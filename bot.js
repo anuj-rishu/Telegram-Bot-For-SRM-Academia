@@ -77,9 +77,10 @@ bot.start((ctx) => {
       "✅ Manage tasks with custom reminders and due dates.\n\n" +
       "Use the commands from ☱ MENU to navigate.\n" +
       "To get started, type /login.\n\n" +
-      "🧑‍💻 Developed by Anuj Rishu Tiwari\n" +
-      "[GitHub](https://github.com/anuj-rishu)\n" +
-      "[LinkedIn](https://linkedin.com/in/anuj-rishu)"
+         "🧑‍💻 Developed by Anuj Rishu Tiwari\n" +
+            "[GitHub](https://github.com/anuj-rishu)\n" +
+            "[LinkedIn](https://linkedin.com/in/anuj-rishu)\n" +
+            "[Instagram](https://instagram.com/anuj_rishu)"
   );
 });
 
