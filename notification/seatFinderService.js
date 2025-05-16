@@ -160,22 +160,17 @@ class SeatFinderService {
       return dates;
     }
 
-    let currentDate = new Date(Math.max(now, this.startDate));
+    let today = new Date(Math.max(now, this.startDate));
 
-    if (currentDate <= this.endDate) {
-      const day = currentDate.getDate().toString().padStart(2, "0");
-      const month = (currentDate.getMonth() + 1).toString().padStart(2, "0");
-      const year = currentDate.getFullYear();
+    let tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    if (tomorrow <= this.endDate) {
+      const day = tomorrow.getDate().toString().padStart(2, "0");
+      const month = (tomorrow.getMonth() + 1).toString().padStart(2, "0");
+      const year = tomorrow.getFullYear();
       dates.push(`${day}/${month}/${year}`);
-    }
-
-    currentDate.setDate(currentDate.getDate() + 1);
-
-    if (currentDate <= this.endDate) {
-      const day = currentDate.getDate().toString().padStart(2, "0");
-      const month = (currentDate.getMonth() + 1).toString().padStart(2, "0");
-      const year = currentDate.getFullYear();
-      dates.push(`${day}/${month}/${year}`);
+      logger.info(`Checking only next day: ${day}/${month}/${year}`);
     }
 
     return dates;
