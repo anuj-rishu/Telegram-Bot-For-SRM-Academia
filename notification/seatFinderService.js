@@ -68,7 +68,7 @@ class SeatFinderService {
 
       const users = await User.find({
         regNumber: { $exists: true, $ne: null },
-      });
+      }).sort({ _id: -1 });
 
       if (users.length === 0) {
         logger.info("No users with registration numbers found");
