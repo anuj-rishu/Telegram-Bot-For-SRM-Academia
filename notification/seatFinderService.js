@@ -92,44 +92,39 @@ class SeatFinderService {
         logger.info(
           `Processing batch ${batchNumber} of ${totalBatches} with ${userBatch.length} users`
         );
+        logger.info(
+          `Users in batch ${batchNumber}: ${userBatch
+            .map((u) => `${u.name || "Unknown"} (${u.regNumber})`)
+            .join(", ")}`
+        );
 
         let seatsFound = 0;
         let notificationsSkipped = 0;
         let notificationsSent = 0;
 
-        await Promise.allSettled(
-          userBatch.map(async (user) => {
-            const userName = user.name || "Unknown";
+        for (const user of userBatch) {
+          const userName = user.name || "Unknown";
+          logger.info(
+            `Checking seats for user: ${userName} (${user.regNumber})`
+          );
 
-            const notifiedSet =
-              user.notifiedSeatsSet || new Set(user.notifiedSeats || []);
-            logger.info(
-              `Checking seats for user: ${userName} (${user.regNumber})`
-            );
-            for (const dateStr of datesToCheck) {
-              try {
-                const result = await this.checkSeatForUserOnDate(
-                  user,
-                  dateStr,
-                  notifiedSet
-                );
-                if (result.seatFound) {
-                  seatsFound++;
-                  if (result.notificationSent) {
-                    notificationsSent++;
-                  } else if (result.alreadyNotified) {
-                    notificationsSkipped++;
-                  }
+          for (const dateStr of datesToCheck) {
+            try {
+              const result = await this.checkSeatForUserOnDate(user, dateStr);
+              if (result.seatFound) {
+                seatsFound++;
+                if (result.notificationSent) {
+                  notificationsSent++;
+                } else if (result.alreadyNotified) {
+                  notificationsSkipped++;
                 }
-              } catch (error) {
-                logger.info(
-                  `Error checking seat for ${userName} on ${dateStr}`
-                );
               }
-              await this.sleep(this.apiDelay);
+            } catch (error) {
+              logger.info(`Error checking seat for ${userName} on ${dateStr}`);
             }
-          })
-        );
+            await this.sleep(this.apiDelay);
+          }
+        }
 
         logger.info(
           `Batch ${batchNumber} results: ${seatsFound} seats found, ${notificationsSent} notifications sent, ${notificationsSkipped} skipped (already notified)`
@@ -166,6 +161,7 @@ class SeatFinderService {
     }
 
     let today = new Date(Math.max(now, this.startDate));
+
     let tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
@@ -180,7 +176,7 @@ class SeatFinderService {
     return dates;
   }
 
-  async checkSeatForUserOnDate(user, dateStr, notifiedSet) {
+  async checkSeatForUserOnDate(user, dateStr) {
     if (!user.regNumber) return { seatFound: false };
     const result = {
       seatFound: false,
@@ -205,22 +201,42 @@ class SeatFinderService {
           (seatDetails.roomInfo || "").trim().toLowerCase(),
         ].join(":");
 
-        if (notifiedSet && notifiedSet.has(seatId)) {
+        if (user.notifiedSeats && user.notifiedSeats.includes(seatId)) {
+          const userName = user.name || "Unknown";
+          logger.info(
+            `Seat already notified for ${userName} (${user.regNumber}) on ${dateStr} at ${seatDetails.venue}`
+          );
           result.alreadyNotified = true;
           return result;
         }
 
+        const userName = user.name || "Unknown";
+        logger.info(
+          `🔔 NEW SEAT found for user [${userName}] with reg# ${user.regNumber} on ${dateStr} at ${seatDetails.venue} room ${seatDetails.roomInfo}`
+        );
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
-        // Use $addToSet to avoid duplicates
         await User.updateOne(
           { _id: user._id },
           { $addToSet: { notifiedSeats: seatId } }
         );
 
+        logger.info(
+          `✅ NOTIFICATION SENT to user [${userName}] (${user.regNumber}) about seat allocation at ${seatDetails.venue}`
+        );
         result.notificationSent = true;
+      } else {
+        const userName = user.name || "Unknown";
+        logger.info(
+          `No seat found for ${userName} (${user.regNumber}) on ${dateStr}`
+        );
       }
-    } catch (error) {}
+    } catch (error) {
+      const userName = user.name || "Unknown";
+      logger.info(
+        `Error checking seat for ${userName} (${user.regNumber}) on ${dateStr}`
+      );
+    }
 
     return result;
   }
@@ -239,11 +255,18 @@ class SeatFinderService {
         `\n📍 *Location:* ${seatDetails.roomInfo}`,
       ].join("\n");
 
-      await this.bot.telegram.sendMessage(telegramId, message, {
+      const result = await this.bot.telegram.sendMessage(telegramId, message, {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-    } catch (error) {}
+
+      logger.info(
+        `Telegram notification delivered successfully to user ${seatDetails.registerNumber} (ID: ${telegramId})`
+      );
+      return result;
+    } catch (error) {
+      logger.info(`Failed to send notification to Telegram ID: ${telegramId}`);
+    }
   }
 }
 
