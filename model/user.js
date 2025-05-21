@@ -61,17 +61,30 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // field to track seat notifications
+
     notifiedSeats: {
-      type: [String], 
+      type: [String],
       default: [],
     },
   },
   {
     timestamps: true,
     bufferCommands: false,
+    minimize: false,
   }
 );
+
+UserSchema.virtual("notifiedSeatsSet").get(function () {
+
+  if (
+    !this._notifiedSeatsSet ||
+    this._notifiedSeatsSetSource !== this.notifiedSeats
+  ) {
+    this._notifiedSeatsSet = new Set(this.notifiedSeats || []);
+    this._notifiedSeatsSetSource = this.notifiedSeats;
+  }
+  return this._notifiedSeatsSet;
+});
 
 UserSchema.index({ lastMarksUpdate: 1, lastAttendanceUpdate: 1 });
 
