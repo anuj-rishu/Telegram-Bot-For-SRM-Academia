@@ -118,7 +118,9 @@ class SeatFinderService {
           for (const dateStr of datesToCheck) {
             try {
               await this.checkSeatForUserOnDate(user, dateStr);
-            } catch (error) {}
+            } catch (error) {
+              logger.error(`Error checking seat for user ${user.regNumber} on ${dateStr}: ${error.message}`);
+            }
             await this.sleep(this.apiDelay);
           }
         }
@@ -135,6 +137,8 @@ class SeatFinderService {
 
       processBatch();
     } catch (error) {
+      logger.error(`Critical error in checkSeatsForAllUsers: ${error.message}`);
+      logger.error(`Stack trace: ${error.stack}`);
       this.isProcessing = false;
       setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
     }
@@ -202,12 +206,14 @@ class SeatFinderService {
 
         result.notificationSent = true;
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`API error for user ${user.regNumber} on ${dateStr}: ${error.message}`);
+    }
 
     return result;
   }
 
-  async sendSeatNotification(telegramId, seatDetails) {
+   async sendSeatNotification(telegramId, seatDetails) {
     try {
       const message = [
         `🎓 *Exam Seat Allocation Found!* 🎓`,
@@ -220,15 +226,19 @@ class SeatFinderService {
         `📝 *Register Number:* ${seatDetails.registerNumber}`,
         `\n📍 *Location:* ${seatDetails.roomInfo}`,
       ].join("\n");
-
+  
       const result = await this.bot.telegram.sendMessage(telegramId, message, {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-
+  
+      // Add success log
+      logger.info(`✅ SUCCESS: Notification sent to user ${seatDetails.registerNumber} (Telegram ID: ${telegramId})`);
+  
       return result;
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Failed to send Telegram notification to ${telegramId}: ${error.message}`);
+    }
   }
-}
-
+ }
 module.exports = SeatFinderService;
