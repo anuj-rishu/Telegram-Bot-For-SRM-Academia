@@ -28,8 +28,18 @@ const attendancePredictionController = require("./controllers/attendancePredicti
 //vault service
 const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 const documentController = require("./controllers/documentController");
-
+//seat finder
 const SeatFinderService = require("./notification/seatFinderService");
+
+//ssp
+const loginStudentPortalScene = require("./scenes/loginStudentPortalScene");
+const hallTicketController = require("./controllers/hallTicketController");
+const studentPortalController = require("./controllers/studentPortalController");
+const HallTicketNotificationService = require("./notification/hallTicketNotificationService");
+
+const {
+  requireStudentPortalLogin,
+} = require("./middlewares/studentPortalAuthMiddleware");
 
 const winston = require("winston");
 
@@ -61,6 +71,7 @@ const stage = new Scenes.Stage([
   attendancePredictionScene,
   lostItemScene,
   uploadDocumentScene,
+  loginStudentPortalScene,
 ]);
 
 bot.use(session());
@@ -77,10 +88,10 @@ bot.start((ctx) => {
       "✅ Manage tasks with custom reminders and due dates.\n\n" +
       "Use the commands from ☱ MENU to navigate.\n" +
       "To get started, type /login.\n\n" +
-         "🧑‍💻 Developed by Anuj Rishu Tiwari\n" +
-            "[GitHub](https://github.com/anuj-rishu)\n" +
-            "[LinkedIn](https://linkedin.com/in/anuj-rishu)\n" +
-            "[Instagram](https://instagram.com/anuj_rishu)"
+      "🧑‍💻 Developed by Anuj Rishu Tiwari\n" +
+      "[GitHub](https://github.com/anuj-rishu)\n" +
+      "[LinkedIn](https://linkedin.com/in/anuj-rishu)\n" +
+      "[Instagram](https://instagram.com/anuj_rishu)"
   );
 });
 
@@ -94,6 +105,9 @@ new MarksNotificationService(bot);
 //  ***temp stop**
 // new AttendanceNotificationService(bot);
 new TaskNotificationService(bot);
+
+//hall ticket notification
+new HallTicketNotificationService(bot);
 
 //seat allocation
 new SeatFinderService(bot);
@@ -156,7 +170,6 @@ bot.action(
 );
 
 //prediction
-
 bot.command("checki", requireLogin, (ctx) =>
   ctx.scene.enter("attendance_prediction")
 );
@@ -194,11 +207,24 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
   return documentController.handleSendDocument(ctx, documentId);
 });
 
+//spp service
+hallTicketController.initialize(bot);
+bot.command("loginstudentportal", (ctx) =>
+  ctx.scene.enter("loginStudentPortal")
+);
+bot.command(
+  "hallticket",
+  requireStudentPortalLogin,
+  hallTicketController.handleHallTicket
+);
+bot.command("logoutSP", studentPortalController.handleLogout);
+
 // Help command
 bot.help((ctx) => {
   ctx.reply(
     "SRM ACADEMIA BOT Commands:\n\n" +
       "/login - Login to your SRM account\n" +
+      "/loginstudentportal - Login to Student Portal\n" +
       "/checki - Chat with AI\n" +
       "/attendance - Check your attendance\n" +
       "/marks - Check your marks\n" +
@@ -208,6 +234,7 @@ bot.help((ctx) => {
       "/dayafterclass  - Get Day After Tomorrows Class\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
+      "/hallticket - Get your hall ticket\n" +
       "/uploaddoc - To upload documents\n" +
       "/mydocs - Get uploaded docs \n" +
       "/reportlost - Report Lost Item\n" +
@@ -217,6 +244,7 @@ bot.help((ctx) => {
       "/complete - Mark a task as complete\n" +
       "/deletetasks - Delete multiple tasks\n" +
       "/logout - Log out from your account\n" +
+      "/logoutSP - Logout from Student Portal\n" +
       "/help - Show this help message"
   );
 });

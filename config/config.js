@@ -5,4 +5,5 @@ module.exports = {
   LOST_ITEM_API_URL: process.env.LOST_ITEM_API_URL,
   VAULTIFY_API_URL: process.env.VAULTIFY_API_URL,
   SEAT_FINDER_API_URL: process.env.SEAT_FINDER_API_URL,
+  STUDENT_PORTAL_API_URL: process.env.STUDENT_PORTAL_API_URL,
 };
