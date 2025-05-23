@@ -28,6 +28,8 @@ class SeatFinderService {
     this.batchDelay = 5000;
     this.apiDelay = 500;
     this.isProcessing = false;
+    this.lastCheckedDate = null;
+    this.checkedUserIds = new Set();
     this.initService();
   }
 
@@ -49,6 +51,20 @@ class SeatFinderService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  isNewDay() {
+    const today = new Date().toDateString();
+    if (this.lastCheckedDate !== today) {
+      this.lastCheckedDate = today;
+      this.checkedUserIds.clear();
+      return true;
+    }
+    return false;
+  }
+
+  isSunday() {
+    return new Date().getDay() === 0;
+  }
+
   async checkSeatsForAllUsers() {
     if (this.isProcessing) {
       return;
@@ -63,9 +79,24 @@ class SeatFinderService {
         return;
       }
 
-      const users = await User.find({
+      if (this.isSunday()) {
+        this.isProcessing = false;
+        setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
+        return;
+      }
+
+      const isNewDay = this.isNewDay();
+
+      const query = {
         regNumber: { $exists: true, $ne: null },
-      }).sort({ _id: -1 });
+      };
+
+      if (!isNewDay && this.checkedUserIds.size > 0) {
+        const checkedIdsArray = Array.from(this.checkedUserIds);
+        query._id = { $nin: checkedIdsArray };
+      }
+
+      const users = await User.find(query).sort({ _id: -1 });
 
       if (users.length === 0) {
         this.isProcessing = false;
@@ -82,6 +113,8 @@ class SeatFinderService {
         const userBatch = users.slice(index, index + this.batchSize);
 
         for (const user of userBatch) {
+          this.checkedUserIds.add(user._id.toString());
+
           for (const dateStr of datesToCheck) {
             try {
               await this.checkSeatForUserOnDate(user, dateStr);
