@@ -1,21 +1,8 @@
 const axios = require("axios");
 const User = require("../model/user");
-const winston = require("winston");
 const mongoose = require("mongoose");
 const config = require("../config/config");
-
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp({
-      format: "YYYY-MM-DD HH:mm:ss",
-    }),
-    winston.format.printf(
-      (info) => `${info.timestamp} ${info.level}: ${info.message}`
-    )
-  ),
-  transports: [new winston.transports.Console()],
-});
+const logger = require("../utils/logger");
 
 class SeatFinderService {
   constructor(bot) {
@@ -119,7 +106,9 @@ class SeatFinderService {
             try {
               await this.checkSeatForUserOnDate(user, dateStr);
             } catch (error) {
-              logger.error(`Error checking seat for user ${user.regNumber} on ${dateStr}: ${error.message}`);
+              logger.error(
+                `Error checking seat for user ${user.regNumber} on ${dateStr}: ${error.message}`
+              );
             }
             await this.sleep(this.apiDelay);
           }
@@ -207,13 +196,15 @@ class SeatFinderService {
         result.notificationSent = true;
       }
     } catch (error) {
-      logger.error(`API error for user ${user.regNumber} on ${dateStr}: ${error.message}`);
+      logger.error(
+        `API error for user ${user.regNumber} on ${dateStr}: ${error.message}`
+      );
     }
 
     return result;
   }
 
-   async sendSeatNotification(telegramId, seatDetails) {
+  async sendSeatNotification(telegramId, seatDetails) {
     try {
       const message = [
         `🎓 *Exam Seat Allocation Found!* 🎓`,
@@ -226,19 +217,23 @@ class SeatFinderService {
         `📝 *Register Number:* ${seatDetails.registerNumber}`,
         `\n📍 *Location:* ${seatDetails.roomInfo}`,
       ].join("\n");
-  
+
       const result = await this.bot.telegram.sendMessage(telegramId, message, {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-  
-      // Add success log
-      logger.info(`✅ SUCCESS: Notification sent to user ${seatDetails.registerNumber} (Telegram ID: ${telegramId})`);
-  
+
+      logger.info(
+        `✅ SUCCESS: Notification sent to user ${seatDetails.registerNumber} (Telegram ID: ${telegramId})`
+      );
+
       return result;
     } catch (error) {
-      logger.error(`Failed to send Telegram notification to ${telegramId}: ${error.message}`);
+      logger.error(
+        `Failed to send Telegram notification to ${telegramId}: ${error.message}`
+      );
     }
   }
- }
+}
+
 module.exports = SeatFinderService;
