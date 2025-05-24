@@ -90,9 +90,7 @@ bot.start((ctx) => {
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 // Login to SP command
-bot.command("loginstudentportal", (ctx) =>
-  ctx.scene.enter("loginStudentPortal")
-);
+bot.command("loginSP", (ctx) => ctx.scene.enter("loginStudentPortal"));
 
 //  Notification services
 
@@ -215,13 +213,12 @@ bot.command(
   hallTicketController.handleHallTicket
 );
 
-
 // Help command
 bot.help((ctx) => {
   ctx.reply(
     "SRM ACADEMIA BOT Commands:\n\n" +
       "/login - Login to your SRM account\n" +
-      "/loginstudentportal - Login to Student Portal\n" +
+      "/loginSP - Login to Student Portal\n" +
       "/checki - Chat with AI\n" +
       "/attendance - Check your attendance\n" +
       "/marks - Check your marks\n" +
