@@ -62,7 +62,7 @@ const stage = new Scenes.Stage([
   attendancePredictionScene,
   lostItemScene,
   uploadDocumentScene,
-  // loginStudentPortalScene,    ** temp stop **
+  loginStudentPortalScene,
 ]);
 
 // Middleware
@@ -90,8 +90,8 @@ bot.start((ctx) => {
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 // Login to SP command
-// ** temp stop **
-// bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
+
+bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
 
 //  Notification services
 
@@ -103,8 +103,8 @@ new MarksNotificationService(bot);
 new TaskNotificationService(bot);
 
 //hall ticket notification
-// ** temp stop **
-// new HallTicketNotificationService(bot);
+
+new HallTicketNotificationService(bot);
 
 //seat allocation
 new SeatFinderService(bot);
@@ -115,8 +115,8 @@ attendancePredictionController.initGroqService(bot);
 // Logout command
 bot.command("logout", requireLogin, authController.handleLogout);
 // logout from sp
-// ** temp stop **
-// bot.command("logoutsp", studentPortalController.handleLogout);
+
+bot.command("logoutsp", studentPortalController.handleLogout);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
@@ -209,13 +209,13 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
 });
 
 //hall ticket command (sp)
-// ** temp stop **
-// hallTicketController.initialize(bot);
-// bot.command(
-//   "hallticket",
-//   requireStudentPortalLogin,
-//   hallTicketController.handleHallTicket
-// );
+
+hallTicketController.initialize(bot);
+bot.command(
+  "hallticket",
+  requireStudentPortalLogin,
+  hallTicketController.handleHallTicket
+);
 
 // Help command
 bot.help((ctx) => {
