@@ -1,4 +1,5 @@
 const axios = require("axios");
+const objectHash = require("object-hash");
 const User = require("../model/user");
 // const logger = require("../utils/logger"); // Removed for production
 const mongoose = require("mongoose");
@@ -75,11 +76,6 @@ class SeatFinderService {
 
       const processBatch = async () => {
         const userBatch = users.slice(index, index + this.batchSize);
-        // const batchNumber = Math.floor(index / this.batchSize) + 1;
-        // const totalBatches = Math.ceil(total / this.batchSize);
-
-        // let seatsFound = 0;
-        // let notificationsSent = 0;
 
         for (const user of userBatch) {
           for (const dateStr of datesToCheck) {
@@ -97,12 +93,6 @@ class SeatFinderService {
             await this.sleep(this.apiDelay);
           }
         }
-
-        // if (seatsFound > 0) {
-        //   logger.info(
-        //     `Batch ${batchNumber}: ${seatsFound} seats found, ${notificationsSent} notifications sent`
-        //   );
-        // }
 
         index += this.batchSize;
 
@@ -161,6 +151,17 @@ class SeatFinderService {
         const seatDetails = response.data.seatDetails;
         result.seatFound = true;
 
+        const seatHash = objectHash(seatDetails);
+
+        const lastHash = user.seatHashes?.get?.(dateStr);
+
+        if (lastHash === seatHash) {
+          result.alreadyNotified = true;
+          return result;
+        }
+
+        await this.sendSeatNotification(user.telegramId, seatDetails);
+
         const seatId = [
           user.regNumber.trim().toLowerCase(),
           dateStr.trim(),
@@ -168,20 +169,12 @@ class SeatFinderService {
           (seatDetails.roomInfo || "").trim().toLowerCase(),
         ].join(":");
 
-        if (user.notifiedSeats && user.notifiedSeats.includes(seatId)) {
-          result.alreadyNotified = true;
-          return result;
-        }
-
-        // const userName = user.name || "Unknown";
-        // logger.info(
-        //   `🔔 NEW SEAT found for user [${userName}] (${user.regNumber}) on ${dateStr}`
-        // );
-        await this.sendSeatNotification(user.telegramId, seatDetails);
-
         await User.updateOne(
           { _id: user._id },
-          { $addToSet: { notifiedSeats: seatId } }
+          {
+            $addToSet: { notifiedSeats: seatId },
+            $set: { [`seatHashes.${dateStr}`]: seatHash },
+          }
         );
 
         result.notificationSent = true;
