@@ -1,20 +1,35 @@
 const axios = require("axios");
 const User = require("../model/user");
-const logger = require("../utils/logger");
+const winston = require("winston");
 const mongoose = require("mongoose");
 const config = require("../config/config");
+
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp({
+      format: "YYYY-MM-DD HH:mm:ss",
+    }),
+    winston.format.printf(
+      (info) => `${info.timestamp} ${info.level}: ${info.message}`
+    )
+  ),
+  transports: [new winston.transports.Console()],
+});
 
 class SeatFinderService {
   constructor(bot) {
     this.bot = bot;
     this.apiUrl = config.SEAT_FINDER_API_URL;
     this.startDate = new Date("2025-05-16");
-    this.endDate = new Date("2025-06-10");
+    this.endDate = new Date("2025-02-10");
     this.checkInterval = 5 * 60 * 1000;
     this.batchSize = 10;
     this.batchDelay = 5000;
     this.apiDelay = 500;
     this.isProcessing = false;
+    this.lastCheckedDate = null;
+    this.checkedUserIds = new Set();
     this.initService();
   }
 
@@ -36,25 +51,52 @@ class SeatFinderService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  isNewDay() {
+    const today = new Date().toDateString();
+    if (this.lastCheckedDate !== today) {
+      this.lastCheckedDate = today;
+      this.checkedUserIds.clear();
+      return true;
+    }
+    return false;
+  }
+
+  isSunday() {
+    return new Date().getDay() === 0;
+  }
+
   async checkSeatsForAllUsers() {
     if (this.isProcessing) {
       return;
     }
 
     this.isProcessing = true;
-    logger.info("Starting seat check process");
 
     try {
       if (mongoose.connection.readyState !== 1) {
-        logger.error("Database not connected, will retry later");
         this.isProcessing = false;
         setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
       }
 
-      const users = await User.find({
+      if (this.isSunday()) {
+        this.isProcessing = false;
+        setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
+        return;
+      }
+
+      const isNewDay = this.isNewDay();
+
+      const query = {
         regNumber: { $exists: true, $ne: null },
-      });
+      };
+
+      if (!isNewDay && this.checkedUserIds.size > 0) {
+        const checkedIdsArray = Array.from(this.checkedUserIds);
+        query._id = { $nin: checkedIdsArray };
+      }
+
+      const users = await User.find(query).sort({ _id: -1 });
 
       if (users.length === 0) {
         this.isProcessing = false;
@@ -64,44 +106,23 @@ class SeatFinderService {
 
       const datesToCheck = this.getDateRange();
 
-      if (datesToCheck.length === 0) {
-        this.isProcessing = false;
-        setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
-        return;
-      }
-
       let index = 0;
       const total = users.length;
 
       const processBatch = async () => {
         const userBatch = users.slice(index, index + this.batchSize);
-        const batchNumber = Math.floor(index / this.batchSize) + 1;
-        const totalBatches = Math.ceil(total / this.batchSize);
-
-        let seatsFound = 0;
-        let notificationsSent = 0;
 
         for (const user of userBatch) {
+          this.checkedUserIds.add(user._id.toString());
+
           for (const dateStr of datesToCheck) {
             try {
-              const result = await this.checkSeatForUserOnDate(user, dateStr);
-              if (result.seatFound && result.notificationSent) {
-                seatsFound++;
-                notificationsSent++;
-              }
+              await this.checkSeatForUserOnDate(user, dateStr);
             } catch (error) {
-              logger.error(
-                `Error checking seat for ${user.regNumber} on ${dateStr}: ${error.message}`
-              );
+              logger.error(`Error checking seat for user ${user.regNumber} on ${dateStr}: ${error.message}`);
             }
             await this.sleep(this.apiDelay);
           }
-        }
-
-        if (seatsFound > 0) {
-          logger.info(
-            `Batch ${batchNumber}: ${seatsFound} seats found, ${notificationsSent} notifications sent`
-          );
         }
 
         index += this.batchSize;
@@ -116,7 +137,8 @@ class SeatFinderService {
 
       processBatch();
     } catch (error) {
-      logger.error(`Error during seat check process: ${error.message}`);
+      logger.error(`Critical error in checkSeatsForAllUsers: ${error.message}`);
+      logger.error(`Stack trace: ${error.stack}`);
       this.isProcessing = false;
       setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
     }
@@ -126,20 +148,22 @@ class SeatFinderService {
     const dates = [];
     const now = new Date();
 
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (tomorrow > this.endDate) {
-      logger.info("Tomorrow is beyond the exam period end date");
+    if (now > this.endDate) {
       return dates;
     }
 
-    const day = tomorrow.getDate().toString().padStart(2, "0");
-    const month = (tomorrow.getMonth() + 1).toString().padStart(2, "0");
-    const year = tomorrow.getFullYear();
-    dates.push(`${day}/${month}/${year}`);
+    let today = new Date(Math.max(now, this.startDate));
 
-    logger.info(`Checking seats only for tomorrow: ${day}/${month}/${year}`);
+    let tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    if (tomorrow <= this.endDate) {
+      const day = tomorrow.getDate().toString().padStart(2, "0");
+      const month = (tomorrow.getMonth() + 1).toString().padStart(2, "0");
+      const year = tomorrow.getFullYear();
+      dates.push(`${day}/${month}/${year}`);
+    }
+
     return dates;
   }
 
@@ -173,10 +197,6 @@ class SeatFinderService {
           return result;
         }
 
-        const userName = user.name || "Unknown";
-        logger.info(
-          `🔔 NEW SEAT found for user [${userName}] (${user.regNumber}) on ${dateStr}`
-        );
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
         await User.updateOne(
@@ -187,15 +207,13 @@ class SeatFinderService {
         result.notificationSent = true;
       }
     } catch (error) {
-      logger.error(
-        `API error for ${user.regNumber} on ${dateStr}: ${error.message}`
-      );
+      logger.error(`API error for user ${user.regNumber} on ${dateStr}: ${error.message}`);
     }
 
     return result;
   }
 
-  async sendSeatNotification(telegramId, seatDetails) {
+   async sendSeatNotification(telegramId, seatDetails) {
     try {
       const message = [
         `🎓 *Exam Seat Allocation Found!* 🎓`,
@@ -208,19 +226,19 @@ class SeatFinderService {
         `📝 *Register Number:* ${seatDetails.registerNumber}`,
         `\n📍 *Location:* ${seatDetails.roomInfo}`,
       ].join("\n");
-
+  
       const result = await this.bot.telegram.sendMessage(telegramId, message, {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-
+  
+      // Add success log
+      logger.info(`✅ SUCCESS: Notification sent to user ${seatDetails.registerNumber} (Telegram ID: ${telegramId})`);
+  
       return result;
     } catch (error) {
-      logger.error(
-        `Failed to send notification to Telegram ID ${telegramId}: ${error.message}`
-      );
+      logger.error(`Failed to send Telegram notification to ${telegramId}: ${error.message}`);
     }
   }
-}
-
+ }
 module.exports = SeatFinderService;
