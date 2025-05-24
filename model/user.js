@@ -61,12 +61,12 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // field to track seat notifications
-     notifiedSeats: {
-      type: [String], 
+//exam seats 
+    notifiedSeats: {
+      type: [String],
       default: [],
     },
-    // field to store seat hashes for fast change detection
+
     seatHashes: {
       type: Map,
       of: String,
