@@ -28,30 +28,19 @@ const attendancePredictionController = require("./controllers/attendancePredicti
 //vault service
 const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 const documentController = require("./controllers/documentController");
-//seat finder
+//seat finder service
 const SeatFinderService = require("./notification/seatFinderService");
 
-//ssp
+//sp service
 const loginStudentPortalScene = require("./scenes/loginStudentPortalScene");
 const hallTicketController = require("./controllers/hallTicketController");
 const studentPortalController = require("./controllers/studentPortalController");
 const HallTicketNotificationService = require("./notification/hallTicketNotificationService");
-
 const {
   requireStudentPortalLogin,
 } = require("./middlewares/studentPortalAuthMiddleware");
 
-const winston = require("winston");
-
-const logger = winston.createLogger({
-  level: "error",
-  format: winston.format.simple(),
-  transports: [
-    new winston.transports.Console({
-      silent: true,
-    }),
-  ],
-});
+const logger = require("./utils/logger");
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
@@ -61,7 +50,9 @@ const originalSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
 bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   try {
     return await originalSendMessage(chatId, text, options);
-  } catch (error) {}
+  } catch (error) {
+    logger.error(`Failed to send message to chat ${chatId}: ${error.message}`);
+  }
 };
 
 //scenes
@@ -74,6 +65,7 @@ const stage = new Scenes.Stage([
   loginStudentPortalScene,
 ]);
 
+// Middleware
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -97,8 +89,13 @@ bot.start((ctx) => {
 
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
+// Login to SP command
+bot.command("loginstudentportal", (ctx) =>
+  ctx.scene.enter("loginStudentPortal")
+);
 
 //  Notification services
+
 //  ***temp stop**
 // new NotificationService(bot);
 new MarksNotificationService(bot);
@@ -112,10 +109,13 @@ new HallTicketNotificationService(bot);
 //seat allocation
 new SeatFinderService(bot);
 
+//attendance prediction
 attendancePredictionController.initGroqService(bot);
 
 // Logout command
 bot.command("logout", requireLogin, authController.handleLogout);
+// logout from sp
+bot.command("logoutSP", studentPortalController.handleLogout);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
@@ -194,12 +194,12 @@ bot.command("finditem", async (ctx) => {
       }
     );
   } catch (error) {
-    console.error("Error in finditem command:", error);
+    logger.error("Error in finditem command:", error);
     await ctx.reply("Sorry, something went wrong. Please try again later.");
   }
 });
 
-//vault service
+//vault service commands
 bot.command("uploaddoc", requireLogin, documentController.handleUploadDocument);
 bot.command("mydocs", requireLogin, documentController.handleGetDocuments);
 bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
@@ -207,17 +207,14 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
   return documentController.handleSendDocument(ctx, documentId);
 });
 
-//spp service
+//hall ticket command (sp)
 hallTicketController.initialize(bot);
-bot.command("loginstudentportal", (ctx) =>
-  ctx.scene.enter("loginStudentPortal")
-);
 bot.command(
   "hallticket",
   requireStudentPortalLogin,
   hallTicketController.handleHallTicket
 );
-bot.command("logoutSP", studentPortalController.handleLogout);
+
 
 // Help command
 bot.help((ctx) => {
@@ -250,6 +247,7 @@ bot.help((ctx) => {
 });
 
 bot.catch((err, ctx) => {
+  logger.error(`Bot error: ${err.message}`);
   ctx.reply("An error occurred. Please try again later.");
 });
 

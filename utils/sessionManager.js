@@ -245,6 +245,7 @@ const sessionManager = {
   async validateAllStudentPortalSessions() {
     const allSessions = this.getAllStudentPortalSessions();
     const userIds = Object.keys(allSessions);
+    const botInstance = global.botInstance;
 
     let validCount = 0;
     let invalidCount = 0;
@@ -253,6 +254,7 @@ const sessionManager = {
       const session = allSessions[userId];
 
       if (!session || !session.token) {
+        await this.notifyStudentPortalTokenExpiry(userId);
         await this.deleteStudentPortalSession(userId);
         invalidCount++;
         continue;
@@ -269,6 +271,7 @@ const sessionManager = {
       } catch (error) {
         if (error.response?.status === 401 || error.response?.status === 403) {
           logger.warn(`Invalid student portal token for user ${userId}`);
+          await this.notifyStudentPortalTokenExpiry(userId);
           await this.deleteStudentPortalSession(userId);
           invalidCount++;
         } else {
@@ -280,6 +283,27 @@ const sessionManager = {
     }
 
     return { valid: validCount, invalid: invalidCount };
+  },
+
+  async notifyStudentPortalTokenExpiry(userId) {
+    try {
+      const botInstance = global.botInstance;
+      if (botInstance) {
+        await botInstance.telegram.sendMessage(
+          userId,
+          "⚠️ Your Student Portal session has expired. Please login again to continue using Student Portal services."
+        );
+        logger.info(
+          `Notified user ${userId} about Student Portal token expiry`
+        );
+      } else {
+        logger.error("Bot instance not available for sending notifications");
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to notify user ${userId} about token expiry: ${error.message}`
+      );
+    }
   },
 
   studentPortalDebug() {
