@@ -90,7 +90,7 @@ bot.start((ctx) => {
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 // Login to SP command
-bot.command("loginSP", (ctx) => ctx.scene.enter("loginStudentPortal"));
+bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
 
 //  Notification services
 
@@ -113,7 +113,7 @@ attendancePredictionController.initGroqService(bot);
 // Logout command
 bot.command("logout", requireLogin, authController.handleLogout);
 // logout from sp
-bot.command("logoutSP", studentPortalController.handleLogout);
+bot.command("logoutsp", studentPortalController.handleLogout);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
@@ -238,7 +238,7 @@ bot.help((ctx) => {
       "/complete - Mark a task as complete\n" +
       "/deletetasks - Delete multiple tasks\n" +
       "/logout - Log out from your account\n" +
-      "/logoutSP - Logout from Student Portal\n" +
+      "/logoutsp - Logout from Student Portal\n" +
       "/help - Show this help message"
   );
 });
