@@ -62,7 +62,7 @@ const stage = new Scenes.Stage([
   attendancePredictionScene,
   lostItemScene,
   uploadDocumentScene,
-  loginStudentPortalScene,
+  // loginStudentPortalScene,  **temp stop**
 ]);
 
 // Middleware
@@ -90,8 +90,8 @@ bot.start((ctx) => {
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 // Login to SP command
-
-bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
+// **temp stop**
+// bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
 
 //  Notification services
 
@@ -211,12 +211,13 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
 
 //hall ticket command (sp)
 
-hallTicketController.initialize(bot);
-bot.command(
-  "hallticket",
-  requireStudentPortalLogin,
-  hallTicketController.handleHallTicket
-);
+// hallTicketController.initialize(bot);
+// **temp stop**
+// bot.command(
+//   "hallticket",
+//   requireStudentPortalLogin,
+//   hallTicketController.handleHallTicket
+// );
 
 // Help command
 bot.help((ctx) => {
