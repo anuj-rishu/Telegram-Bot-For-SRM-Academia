@@ -1,22 +1,20 @@
 const axios = require("axios");
 const User = require("../model/user");
+const logger = require("../utils/logger");
 const mongoose = require("mongoose");
 const config = require("../config/config");
-const logger = require("../utils/logger");
 
 class SeatFinderService {
   constructor(bot) {
     this.bot = bot;
     this.apiUrl = config.SEAT_FINDER_API_URL;
     this.startDate = new Date("2025-05-16");
-    this.endDate = new Date("2025-02-10");
+    this.endDate = new Date("2025-06-10");
     this.checkInterval = 5 * 60 * 1000;
     this.batchSize = 10;
     this.batchDelay = 5000;
     this.apiDelay = 500;
     this.isProcessing = false;
-    this.lastCheckedDate = null;
-    this.checkedUserIds = new Set();
     this.initService();
   }
 
@@ -38,87 +36,96 @@ class SeatFinderService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  isNewDay() {
-    const today = new Date().toDateString();
-    if (this.lastCheckedDate !== today) {
-      this.lastCheckedDate = today;
-      this.checkedUserIds.clear();
-      return true;
-    }
-    return false;
-  }
-
-  isSunday() {
-    return new Date().getDay() === 0;
-  }
-
   async checkSeatsForAllUsers() {
     if (this.isProcessing) {
+      logger.info("Seat check already in progress, skipping this run");
       return;
     }
 
     this.isProcessing = true;
+    logger.info("Starting seat check process");
 
     try {
       if (mongoose.connection.readyState !== 1) {
+        logger.info("Database not connected, will retry later");
         this.isProcessing = false;
         setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
       }
 
-      if (this.isSunday()) {
-        this.isProcessing = false;
-        setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
-        return;
-      }
-
-      const isNewDay = this.isNewDay();
-
-      const query = {
+      const users = await User.find({
         regNumber: { $exists: true, $ne: null },
-      };
-
-      if (!isNewDay && this.checkedUserIds.size > 0) {
-        const checkedIdsArray = Array.from(this.checkedUserIds);
-        query._id = { $nin: checkedIdsArray };
-      }
-
-      const users = await User.find(query).sort({ _id: -1 });
+      }).sort({ _id: -1 });
 
       if (users.length === 0) {
+        logger.info("No users with registration numbers found");
         this.isProcessing = false;
         setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
       }
 
+      logger.info(`Checking seats for ${users.length} users`);
       const datesToCheck = this.getDateRange();
+      logger.info(`Checking dates: ${datesToCheck.join(", ")}`);
 
       let index = 0;
       const total = users.length;
 
       const processBatch = async () => {
         const userBatch = users.slice(index, index + this.batchSize);
+        const batchNumber = Math.floor(index / this.batchSize) + 1;
+        const totalBatches = Math.ceil(total / this.batchSize);
+
+        logger.info(
+          `Processing batch ${batchNumber} of ${totalBatches} with ${userBatch.length} users`
+        );
+        logger.info(
+          `Users in batch ${batchNumber}: ${userBatch
+            .map((u) => `${u.name || "Unknown"} (${u.regNumber})`)
+            .join(", ")}`
+        );
+
+        let seatsFound = 0;
+        let notificationsSkipped = 0;
+        let notificationsSent = 0;
 
         for (const user of userBatch) {
-          this.checkedUserIds.add(user._id.toString());
+          const userName = user.name || "Unknown";
+          logger.info(
+            `Checking seats for user: ${userName} (${user.regNumber})`
+          );
 
           for (const dateStr of datesToCheck) {
             try {
-              await this.checkSeatForUserOnDate(user, dateStr);
+              const result = await this.checkSeatForUserOnDate(user, dateStr);
+              if (result.seatFound) {
+                seatsFound++;
+                if (result.notificationSent) {
+                  notificationsSent++;
+                } else if (result.alreadyNotified) {
+                  notificationsSkipped++;
+                }
+              }
             } catch (error) {
-              logger.error(
-                `Error checking seat for user ${user.regNumber} on ${dateStr}: ${error.message}`
-              );
+              logger.info(`Error checking seat for ${userName} on ${dateStr}`);
             }
             await this.sleep(this.apiDelay);
           }
         }
 
+        logger.info(
+          `Batch ${batchNumber} results: ${seatsFound} seats found, ${notificationsSent} notifications sent, ${notificationsSkipped} skipped (already notified)`
+        );
+
         index += this.batchSize;
 
         if (index < total) {
+          logger.info(
+            `Completed batch ${batchNumber}/${totalBatches}, waiting before processing next batch`
+          );
           setTimeout(processBatch, this.batchDelay);
         } else {
+          logger.info("All batches completed successfully");
           this.isProcessing = false;
           setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         }
@@ -126,8 +133,7 @@ class SeatFinderService {
 
       processBatch();
     } catch (error) {
-      logger.error(`Critical error in checkSeatsForAllUsers: ${error.message}`);
-      logger.error(`Stack trace: ${error.stack}`);
+      logger.info("Error occurred during seat check process");
       this.isProcessing = false;
       setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
     }
@@ -151,6 +157,7 @@ class SeatFinderService {
       const month = (tomorrow.getMonth() + 1).toString().padStart(2, "0");
       const year = tomorrow.getFullYear();
       dates.push(`${day}/${month}/${year}`);
+      logger.info(`Checking only next day: ${day}/${month}/${year}`);
     }
 
     return dates;
@@ -182,10 +189,18 @@ class SeatFinderService {
         ].join(":");
 
         if (user.notifiedSeats && user.notifiedSeats.includes(seatId)) {
+          const userName = user.name || "Unknown";
+          logger.info(
+            `Seat already notified for ${userName} (${user.regNumber}) on ${dateStr} at ${seatDetails.venue}`
+          );
           result.alreadyNotified = true;
           return result;
         }
 
+        const userName = user.name || "Unknown";
+        logger.info(
+          `🔔 NEW SEAT found for user [${userName}] with reg# ${user.regNumber} on ${dateStr} at ${seatDetails.venue} room ${seatDetails.roomInfo}`
+        );
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
         await User.updateOne(
@@ -193,11 +208,20 @@ class SeatFinderService {
           { $addToSet: { notifiedSeats: seatId } }
         );
 
+        logger.info(
+          `✅ NOTIFICATION SENT to user [${userName}] (${user.regNumber}) about seat allocation at ${seatDetails.venue}`
+        );
         result.notificationSent = true;
+      } else {
+        const userName = user.name || "Unknown";
+        logger.info(
+          `No seat found for ${userName} (${user.regNumber}) on ${dateStr}`
+        );
       }
     } catch (error) {
-      logger.error(
-        `API error for user ${user.regNumber} on ${dateStr}: ${error.message}`
+      const userName = user.name || "Unknown";
+      logger.info(
+        `Error checking seat for ${userName} (${user.regNumber}) on ${dateStr}`
       );
     }
 
@@ -224,14 +248,11 @@ class SeatFinderService {
       });
 
       logger.info(
-        `✅ SUCCESS: Notification sent to user ${seatDetails.registerNumber} (Telegram ID: ${telegramId})`
+        `Telegram notification delivered successfully to user ${seatDetails.registerNumber} (ID: ${telegramId})`
       );
-
       return result;
     } catch (error) {
-      logger.error(
-        `Failed to send Telegram notification to ${telegramId}: ${error.message}`
-      );
+      logger.info(`Failed to send notification to Telegram ID: ${telegramId}`);
     }
   }
 }
