@@ -104,7 +104,8 @@ new TaskNotificationService(bot);
 
 //hall ticket notification
 
-new HallTicketNotificationService(bot);
+// ***temp stop**
+// new HallTicketNotificationService(bot);
 
 //seat allocation
 new SeatFinderService(bot);
