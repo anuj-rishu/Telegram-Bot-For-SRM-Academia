@@ -2,20 +2,7 @@ require("dotenv").config();
 const bot = require("./bot");
 const connectDB = require("./config/db");
 const sessionManager = require("./utils/sessionManager");
-const winston = require("winston");
-
-const logger = winston.createLogger({
-  level: "error",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.simple()
-  ),
-  transports: [
-    new winston.transports.Console({
-      silent: false,
-    }),
-  ],
-});
+const logger = require("./utils/logger");
 
 process.on("unhandledRejection", (reason, promise) => {
   logger.error(`Unhandled Rejection: ${reason}`);
@@ -27,14 +14,17 @@ try {
       global.gc();
     }, 30000);
   }
-} catch (e) {}
+} catch (e) {
+  logger.error(`Error setting up garbage collection: ${e.message}`);
+}
 
 let memoryUsageLog = 0;
 setInterval(() => {
   const memoryUsed = process.memoryUsage().heapUsed / 1024 / 1024;
 
-  if (Math.abs(memoryUsed - memoryUsageLog) > 20) {
+  if (Math.abs(memoryUsed - memoryUsageLog) > 50) {
     memoryUsageLog = memoryUsed;
+    logger.error(`Critical memory usage change: ${memoryUsed.toFixed(2)} MB`);
   }
 }, 60000);
 
@@ -43,11 +33,16 @@ async function startBot() {
     await connectDB();
     global.botInstance = bot;
     await sessionManager.initializeSessions();
-    sessionManager.startPeriodicValidation(240); // 4 hours
+    sessionManager.startPeriodicValidation(240); //4 h
     await bot.launch();
 
-    process.once("SIGINT", () => bot.stop("SIGINT"));
-    process.once("SIGTERM", () => bot.stop("SIGTERM"));
+    process.once("SIGINT", () => {
+      bot.stop("SIGINT");
+    });
+
+    process.once("SIGTERM", () => {
+      bot.stop("SIGTERM");
+    });
   } catch (err) {
     logger.error(`Failed to start bot: ${err.message}`);
     process.exit(1);
