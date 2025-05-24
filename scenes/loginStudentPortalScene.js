@@ -15,7 +15,7 @@ const loginStudentPortalScene = new Scenes.WizardScene(
       const session = sessionManager.getStudentPortalSession(userId);
       if (session && session.token) {
         await ctx.reply(
-          "You are already logged into the Student Portal. Please use /logoutportal first if you want to login with a different account."
+          "You are already logged into the Student Portal. Please use /logoutsp first if you want to login with a different account."
         );
         return ctx.scene.leave();
       }
