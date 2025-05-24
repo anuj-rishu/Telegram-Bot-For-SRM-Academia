@@ -1,6 +1,6 @@
 const axios = require("axios");
 const User = require("../model/user");
-const logger = require("../utils/logger");
+// const logger = require("../utils/logger"); // Removed for production
 const mongoose = require("mongoose");
 const config = require("../config/config");
 
@@ -42,11 +42,11 @@ class SeatFinderService {
     }
 
     this.isProcessing = true;
-    logger.info("Starting seat check process");
+    // logger.info("Starting seat check process");
 
     try {
       if (mongoose.connection.readyState !== 1) {
-        logger.error("Database not connected, will retry later");
+        // logger.error("Database not connected, will retry later");
         this.isProcessing = false;
         setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
         return;
@@ -75,34 +75,34 @@ class SeatFinderService {
 
       const processBatch = async () => {
         const userBatch = users.slice(index, index + this.batchSize);
-        const batchNumber = Math.floor(index / this.batchSize) + 1;
-        const totalBatches = Math.ceil(total / this.batchSize);
+        // const batchNumber = Math.floor(index / this.batchSize) + 1;
+        // const totalBatches = Math.ceil(total / this.batchSize);
 
-        let seatsFound = 0;
-        let notificationsSent = 0;
+        // let seatsFound = 0;
+        // let notificationsSent = 0;
 
         for (const user of userBatch) {
           for (const dateStr of datesToCheck) {
             try {
               const result = await this.checkSeatForUserOnDate(user, dateStr);
-              if (result.seatFound && result.notificationSent) {
-                seatsFound++;
-                notificationsSent++;
-              }
+              // if (result.seatFound && result.notificationSent) {
+              //   seatsFound++;
+              //   notificationsSent++;
+              // }
             } catch (error) {
-              logger.error(
-                `Error checking seat for ${user.regNumber} on ${dateStr}: ${error.message}`
-              );
+              // logger.error(
+              //   `Error checking seat for ${user.regNumber} on ${dateStr}: ${error.message}`
+              // );
             }
             await this.sleep(this.apiDelay);
           }
         }
 
-        if (seatsFound > 0) {
-          logger.info(
-            `Batch ${batchNumber}: ${seatsFound} seats found, ${notificationsSent} notifications sent`
-          );
-        }
+        // if (seatsFound > 0) {
+        //   logger.info(
+        //     `Batch ${batchNumber}: ${seatsFound} seats found, ${notificationsSent} notifications sent`
+        //   );
+        // }
 
         index += this.batchSize;
 
@@ -116,7 +116,7 @@ class SeatFinderService {
 
       processBatch();
     } catch (error) {
-      logger.error(`Error during seat check process: ${error.message}`);
+      // logger.error(`Error during seat check process: ${error.message}`);
       this.isProcessing = false;
       setTimeout(() => this.checkSeatsForAllUsers(), this.checkInterval);
     }
@@ -130,7 +130,7 @@ class SeatFinderService {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     if (tomorrow > this.endDate) {
-      logger.info("Tomorrow is beyond the exam period end date");
+      // logger.info("Tomorrow is beyond the exam period end date");
       return dates;
     }
 
@@ -139,7 +139,7 @@ class SeatFinderService {
     const year = tomorrow.getFullYear();
     dates.push(`${day}/${month}/${year}`);
 
-    logger.info(`Checking seats only for tomorrow: ${day}/${month}/${year}`);
+    // logger.info(`Checking seats only for tomorrow: ${day}/${month}/${year}`);
     return dates;
   }
 
@@ -173,10 +173,10 @@ class SeatFinderService {
           return result;
         }
 
-        const userName = user.name || "Unknown";
-        logger.info(
-          `🔔 NEW SEAT found for user [${userName}] (${user.regNumber}) on ${dateStr}`
-        );
+        // const userName = user.name || "Unknown";
+        // logger.info(
+        //   `🔔 NEW SEAT found for user [${userName}] (${user.regNumber}) on ${dateStr}`
+        // );
         await this.sendSeatNotification(user.telegramId, seatDetails);
 
         await User.updateOne(
@@ -187,9 +187,9 @@ class SeatFinderService {
         result.notificationSent = true;
       }
     } catch (error) {
-      logger.error(
-        `API error for ${user.regNumber} on ${dateStr}: ${error.message}`
-      );
+      // logger.error(
+      //   `API error for ${user.regNumber} on ${dateStr}: ${error.message}`
+      // );
     }
 
     return result;
@@ -216,9 +216,9 @@ class SeatFinderService {
 
       return result;
     } catch (error) {
-      logger.error(
-        `Failed to send notification to Telegram ID ${telegramId}: ${error.message}`
-      );
+      // logger.error(
+      //   `Failed to send notification to Telegram ID ${telegramId}: ${error.message}`
+      // );
     }
   }
 }
