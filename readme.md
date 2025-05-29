@@ -141,9 +141,6 @@ Developed by **Anuj Rishu Tiwari**
 - **GitHub**: [anuj-rishu](https://github.com/anuj-rishu)
 - **LinkedIn**: [anuj-rishu](https://linkedin.com/in/anuj-rishu)
 
-## 📜 License
-
-This project is open-source and available under the CC BY-NC-ND 4.0 License.
 
 ## 📝 Contributing
 
@@ -163,6 +160,19 @@ Contributions are welcome! Please follow these steps:
    git push origin feature/amazing-feature
    ```
 5. Open a Pull Request.
+
+## License
+
+This project is licensed under the Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0).
+
+You are free to share, copy, and redistribute the material in any medium or format under the following terms:
+
+Attribution — You must give appropriate credit.
+NonCommercial — You may not use the material for commercial purposes.
+NoDerivatives — If you remix, transform, or build upon the material, you may not distribute the modified material.
+See the LICENSE for more details.
+
+
 
 Happy coding! 🚀
 
