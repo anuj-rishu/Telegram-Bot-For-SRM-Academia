@@ -175,6 +175,3 @@ See the [LICENSE](https://creativecommons.org/licenses/by-nc-nd/4.0/) for more d
 
 
 
-
-Happy coding! 🚀
-
