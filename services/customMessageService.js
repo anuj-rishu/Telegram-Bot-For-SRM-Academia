@@ -1,73 +1,50 @@
 const User = require("../model/user");
-const NotificationTracking = require("../model/notification");
-const axios = require("axios");
+const config = require("../config/config");
+const ioClient = require("socket.io-client");
+const logger = require("../utils/logger");
 
 class CustomMessageService {
   constructor(bot) {
     this.bot = bot;
-    this.lastNotificationSent = null;
-    this.startNotificationPolling();
+    this.socket = null;
+    this.initSocket();
   }
 
-  startNotificationPolling() {
-    this.pollInterval = setInterval(() => {
-      this.checkAndSendNotifications();
-    }, 60000);
-  }
+  initSocket() {
+    const notificationSocketUrl = config.NOTIFICATION_API_URL.replace(
+      "/api/notifications/get-notification",
+      ""
+    );
+    this.socket = ioClient(notificationSocketUrl, {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+    });
 
-  stopNotificationPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-    }
-  }
+    this.socket.on("connect", () => {
+      this.socket.emit("notification:subscribe");
+    });
 
-  async checkAndSendNotifications() {
-    const currentTime = Date.now();
-    const tenMinutesInMs = 10 * 60 * 1000;
+    this.socket.on("disconnect", () => {});
 
-    if (
-      this.lastNotificationSent &&
-      currentTime - this.lastNotificationSent < tenMinutesInMs
-    ) {
-      return;
-    }
-
-    try {
-      const notificationApiUrl = process.env.NOTIFICATION_API_URL;
-      const response = await axios.get(notificationApiUrl);
-      const data = response.data;
-
-      if (data.success && data.count > 0) {
-        let newNotificationsCount = 0;
-
-        for (const notification of data.notifications) {
-          try {
-            await new NotificationTracking({
-              notificationId: notification.id,
-            }).save();
-
-            await this.broadcastMessage(notification.message);
-            newNotificationsCount++;
-          } catch (error) {
-            if (error.code !== 11000) {
-            }
-          }
-        }
-
-        if (newNotificationsCount > 0) {
-          this.lastNotificationSent = Date.now();
-        }
+    this.socket.on("notification:new", async (notification) => {
+      if (!notification || !notification.message) {
+        logger.error(
+          "[CustomMessageService] Notification payload missing 'message' field"
+        );
+        return;
       }
-    } catch (error) {}
+      await this.broadcastMessage(notification.message);
+    });
+
+    this.socket.on("connect_error", (err) => {
+      logger.error(
+        "[CustomMessageService] Socket connection error: " + err.message
+      );
+    });
   }
 
-  /**
-   * Send a message to a specific user by Telegram ID
-   * @param {String} userId - Telegram user ID
-   * @param {String} message - Message text (supports Markdown)
-   * @param {Object} options - Additional message options
-   * @returns {Promise<Object>} Result of the operation
-   */
   async sendMessageToUser(userId, message, options = {}) {
     try {
       const result = await this.bot.telegram.sendMessage(userId, message, {
@@ -75,30 +52,18 @@ class CustomMessageService {
         disable_web_page_preview: options.disablePreview || false,
         ...options,
       });
-
       return { success: true, messageId: result.message_id };
     } catch (error) {
+      logger.error(
+        `[CustomMessageService] Error sending to user ${userId}: ${error.message}`
+      );
       return { success: false, error: error.message };
     }
   }
 
-  /**
-   * Broadcast a message to all users
-   * @param {String} message - Message text (supports Markdown)
-   * @param {Object} options - Additional message options
-   * @returns {Promise<Object>} Result statistics
-   */
   async broadcastMessage(message, options = {}) {
     try {
       const users = await User.find({});
-
-      const results = {
-        total: users.length,
-        successful: 0,
-        failed: 0,
-        errors: [],
-      };
-
       for (const user of users) {
         try {
           await this.bot.telegram.sendMessage(user.telegramId, message, {
@@ -106,63 +71,16 @@ class CustomMessageService {
             disable_web_page_preview: options.disablePreview || false,
             ...options,
           });
-          results.successful++;
         } catch (error) {
-          results.failed++;
-          results.errors.push({
-            userId: user.telegramId,
-            error: error.message,
-          });
+          logger.error(
+            `[CustomMessageService] Failed to send message to ${user.telegramId}: ${error.message}`
+          );
         }
-
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-
-      return { success: true, results };
+      return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Send message to users matching specific criteria
-   * @param {Object} filter - MongoDB filter criteria
-   * @param {String} message - Message text (supports Markdown)
-   * @param {Object} options - Additional message options
-   * @returns {Promise<Object>} Result statistics
-   */
-  async sendMessageToFilteredUsers(filter, message, options = {}) {
-    try {
-      const users = await User.find(filter);
-
-      const results = {
-        total: users.length,
-        successful: 0,
-        failed: 0,
-        errors: [],
-      };
-
-      for (const user of users) {
-        try {
-          await this.bot.telegram.sendMessage(user.telegramId, message, {
-            parse_mode: options.parseMode || "Markdown",
-            disable_web_page_preview: options.disablePreview || false,
-            ...options,
-          });
-          results.successful++;
-        } catch (error) {
-          results.failed++;
-          results.errors.push({
-            userId: user.telegramId,
-            error: error.message,
-          });
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-
-      return { success: true, results };
-    } catch (error) {
+      logger.error("[CustomMessageService] Broadcast error: " + error.message);
       return { success: false, error: error.message };
     }
   }
