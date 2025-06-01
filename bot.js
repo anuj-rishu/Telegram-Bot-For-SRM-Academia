@@ -108,7 +108,9 @@ new TaskNotificationService(bot);
 // new HallTicketNotificationService(bot);
 
 //seat allocation
-new SeatFinderService(bot);
+
+//***temp stop***
+// new SeatFinderService(bot);
 
 //attendance prediction
 attendancePredictionController.initGroqService(bot);
