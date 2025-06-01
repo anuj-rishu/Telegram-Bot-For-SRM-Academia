@@ -4,6 +4,18 @@ const connectDB = require("./config/db");
 const sessionManager = require("./utils/sessionManager");
 const logger = require("./utils/logger");
 
+const express = require("express");
+const app = express();
+const PORT = process.env.PORT || 9000;
+
+app.get("/", (req, res) => {
+  res.send("Bot is running!");
+});
+
+app.listen(PORT, () => {
+  logger.info(`HTTP server listening on port ${PORT}`);
+});
+
 process.on("unhandledRejection", (reason, promise) => {
   logger.error(`Unhandled Rejection: ${reason}`);
 });
