@@ -7,4 +7,5 @@ module.exports = {
   VAULTIFY_API_URL: process.env.VAULTIFY_API_URL,
   SEAT_FINDER_API_URL: process.env.SEAT_FINDER_API_URL,
   STUDENT_PORTAL_API_URL: process.env.STUDENT_PORTAL_API_URL,
+  PRIVACY_URL: process.env.PRIVACY_URL,
 };

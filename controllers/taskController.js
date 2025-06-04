@@ -2,10 +2,6 @@ const moment = require("moment");
 const { Markup } = require("telegraf");
 const Task = require("../model/task");
 
-/**
- * Handle tasks list command
- * @param {Object} ctx - Telegraf context
- */
 async function handleTasksList(ctx) {
   const userId = ctx.from.id;
 
@@ -59,10 +55,6 @@ async function handleTasksList(ctx) {
   }
 }
 
-/**
- * Handle task completion command
- * @param {Object} ctx - Telegraf context
- */
 async function handleCompleteTask(ctx) {
   const userId = ctx.from.id;
   const taskId = ctx.message.text.split(" ")[1];
@@ -90,10 +82,6 @@ async function handleCompleteTask(ctx) {
   }
 }
 
-/**
- * Show tasks with completion buttons
- * @param {Object} ctx - Telegraf context
- */
 async function showTasksForCompletion(ctx) {
   const userId = ctx.from.id;
 
@@ -117,23 +105,14 @@ async function showTasksForCompletion(ctx) {
 
     await ctx.reply(message, Markup.inlineKeyboard(buttons));
   } catch (error) {
-    // Removed console.error to reduce CPU usage
     ctx.reply("❌ Error fetching your tasks. Please try again.");
   }
 }
 
-/**
- * Handle multiple task deletion command
- * @param {Object} ctx - Telegraf context
- */
 async function handleDeleteMultipleTasks(ctx) {
   await showTasksForMultipleSelection(ctx);
 }
 
-/**
- * Show tasks with checkboxes for multiple selection
- * @param {Object} ctx - Telegraf context
- */
 async function showTasksForMultipleSelection(ctx) {
   const userId = ctx.from.id;
 
@@ -183,10 +162,6 @@ async function showTasksForMultipleSelection(ctx) {
   }
 }
 
-/**
- * Handle callback queries for task actions
- * @param {Object} ctx - Telegraf context
- */
 async function handleTaskCallbacks(ctx) {
   try {
     const callbackData = ctx.callbackQuery.data;

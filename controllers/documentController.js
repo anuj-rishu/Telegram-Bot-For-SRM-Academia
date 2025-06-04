@@ -3,6 +3,8 @@ const FormData = require("form-data");
 const User = require("../model/user");
 const { Markup } = require("telegraf");
 const config = require("../config/config");
+const logger = require("../utils/logger");
+const { createLoader } = require("../utils/loader");
 
 const MIME_TO_EXT = {
   "application/pdf": ".pdf",
@@ -15,24 +17,16 @@ const MIME_TO_EXT = {
   "application/vnd.ms-excel": ".xls",
   "application/msword": ".doc",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-    ".docx",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
   "application/vnd.ms-powerpoint": ".ppt",
   "application/zip": ".zip",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-    ".pptx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
   "application/x-rar-compressed": ".rar",
   "application/x-tar": ".tar",
   "video/mp4": ".mp4",
   "audio/mpeg": ".mp3",
 };
 
-/**
- * API request with user token
- * @param {String} endpoint - API endpoint
- * @param {String} token - User's authentication token
- * @param {Object} options - Additional options
- */
 const apiRequest = async (endpoint, token, options = {}) => {
   const url = `${config.VAULTIFY_API_URL}${endpoint}`;
   const headers = {
@@ -40,7 +34,6 @@ const apiRequest = async (endpoint, token, options = {}) => {
     Accept: "application/json",
     ...options.headers,
   };
-
   return axios({
     url,
     method: options.method || "get",
@@ -50,38 +43,6 @@ const apiRequest = async (endpoint, token, options = {}) => {
   });
 };
 
-async function createLoader(ctx, text) {
-  const frames = ["⏳", "⌛️", "⏳", "⌛️"];
-  const msg = await ctx.reply(`${frames[0]} ${text}`);
-  let idx = 0,
-    intervalId;
-
-  intervalId = setInterval(() => {
-    idx = (idx + 1) % frames.length;
-    ctx.telegram
-      .editMessageText(
-        ctx.chat.id,
-        msg.message_id,
-        undefined,
-        `${frames[idx]} ${text}`
-      )
-      .catch(() => clearInterval(intervalId));
-  }, 800);
-
-  return {
-    messageId: msg.message_id,
-    stop: () => clearInterval(intervalId),
-    async clear() {
-      try {
-        await ctx.telegram.deleteMessage(ctx.chat.id, this.messageId);
-        this.stop();
-      } catch (err) {
-        console.error("Error clearing loader:", err.message);
-      }
-    },
-  };
-}
-
 const format = {
   fileSize: (bytes) => {
     if (bytes < 1024) return bytes + " B";
@@ -89,7 +50,6 @@ const format = {
     if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
     return (bytes / 1073741824).toFixed(1) + " GB";
   },
-
   date: (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -99,7 +59,6 @@ const format = {
       minute: "2-digit",
     });
   },
-
   filename: (name, mimeType) => {
     const ext = MIME_TO_EXT[mimeType] || "";
     const hasExt =
@@ -123,7 +82,6 @@ async function handleGetDocuments(ctx) {
 
   try {
     const loader = await createLoader(ctx, "Fetching your documents...");
-
     const response = await apiRequest("/documents/", user.token);
     await loader.clear();
 
@@ -136,9 +94,7 @@ async function handleGetDocuments(ctx) {
 
     for (let i = 0; i < documents.length; i += 5) {
       const chunk = documents.slice(i, i + 5);
-      let message =
-        i === 0 ? "📁 *Your Documents*\n\n" : "*More Documents*\n\n";
-
+      let message = i === 0 ? "📁 *Your Documents*\n\n" : "*More Documents*\n\n";
       chunk.forEach((doc, idx) => {
         const docNum = i + idx + 1;
         message += `*${docNum}. 📄 ${doc.fileName}*\n`;
@@ -148,18 +104,15 @@ async function handleGetDocuments(ctx) {
         if (doc.tags?.length) message += `Tags: ${doc.tags.join(", ")}\n`;
         message += `Uploaded: ${format.date(doc.createdAt)}\n\n`;
       });
-
       const buttons = chunk.map((doc) => [
         Markup.button.callback(`📄 Get ${doc.fileName}`, `send_doc:${doc.id}`),
       ]);
-
       await ctx.replyWithMarkdown(message, Markup.inlineKeyboard(buttons));
     }
   } catch (error) {
-    console.error(
-      "Error fetching documents:",
-      error.response?.data || error.message
-    );
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Error fetching documents:", error.response?.data || error.message);
+    }
     await ctx.reply(
       "❌ Sorry, there was an error retrieving your documents. Please try again later."
     );
@@ -173,7 +126,6 @@ async function handleSendDocument(ctx, documentId) {
 
   try {
     const loader = await createLoader(ctx, "Preparing document for sending...");
-
     const response = await apiRequest("/documents/", user.token);
     const document = response.data.find((doc) => doc.id === documentId);
 
@@ -205,10 +157,9 @@ async function handleSendDocument(ctx, documentId) {
       { caption, parse_mode: "Markdown" }
     );
   } catch (error) {
-    console.error(
-      "Error sending document:",
-      error.response?.data || error.message
-    );
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Error sending document:", error.response?.data || error.message);
+    }
     if (ctx.callbackQuery)
       ctx.answerCbQuery("Error sending document", { show_alert: true });
     await ctx.reply(
