@@ -1,10 +1,7 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const logger = require("../utils/logger");
 
-/**
- * Handle calendar command
- * @param {Object} ctx - Telegraf context
- */
 async function handleCalendar(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
@@ -33,7 +30,6 @@ async function handleCalendar(ctx) {
     if (calendar?.calendar?.length > 0) {
       for (const month of calendar.calendar) {
         message += `*${month.month}*\n`;
-
         if (month.days?.length > 0) {
           for (const day of month.days) {
             message += `${day.date}: ${day.event}\n`;
@@ -41,7 +37,6 @@ async function handleCalendar(ctx) {
         } else {
           message += "No events\n";
         }
-
         message += "\n";
       }
     } else {
@@ -50,6 +45,9 @@ async function handleCalendar(ctx) {
 
     await ctx.replyWithMarkdown(message);
   } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Calendar fetch error:", error.message || error);
+    }
     ctx.reply(
       `Error fetching calendar: ${
         error.response?.data?.error || error.message || "Unknown error"

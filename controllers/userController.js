@@ -1,51 +1,23 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const { createLoader } = require("../utils/loader");
 
-async function createLoaderAnimation(ctx, initialText) {
-  const loadingFrames = ["⏳", "⌛️", "⏳", "⌛️"];
-  const loadingMsg = await ctx.reply(`${loadingFrames[0]} ${initialText}`);
-
-  let frameIndex = 0;
-  const intervalId = setInterval(() => {
-    frameIndex = (frameIndex + 1) % loadingFrames.length;
-    ctx.telegram
-      .editMessageText(
-        ctx.chat.id,
-        loadingMsg.message_id,
-        undefined,
-        `${loadingFrames[frameIndex]} ${initialText}`
-      )
-      .catch(() => {
-        clearInterval(intervalId);
-      });
-  }, 800);
-
-  return {
-    messageId: loadingMsg.message_id,
-    stop: () => clearInterval(intervalId),
-  };
-}
-
-/**
- * Handle user info command
- * @param {Object} ctx - Telegraf context
- */
 async function handleUserInfo(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
   if (!session || !session.token) {
-    return ctx.reply("You need to login first. Use /login command.");
+    await ctx.reply("You need to login first. Use /login command.");
+    return;
   }
 
-  const loader = await createLoaderAnimation(ctx, "Fetching your profile...");
+  const loaderPromise = createLoader(ctx, "Fetching your profile...");
+  const apiPromise = apiService.makeAuthenticatedRequest("/user", session);
+
+  const [loader] = await Promise.all([loaderPromise]);
 
   try {
-    const response = await apiService.makeAuthenticatedRequest(
-      "/user",
-      session
-    );
-
+    const response = await apiPromise;
     loader.stop();
 
     const user = response.data;
@@ -76,8 +48,7 @@ async function handleUserInfo(ctx) {
     );
   } catch (error) {
     loader.stop();
-
-    ctx.telegram.editMessageText(
+    await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
       undefined,

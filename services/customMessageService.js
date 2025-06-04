@@ -26,22 +26,16 @@ class CustomMessageService {
       this.socket.emit("notification:subscribe");
     });
 
-    this.socket.on("disconnect", () => {});
-
     this.socket.on("notification:new", async (notification) => {
       if (!notification || !notification.message) {
-        logger.error(
-          "[CustomMessageService] Notification payload missing 'message' field"
-        );
+        logger.error("[CustomMessageService] Notification payload missing 'message' field");
         return;
       }
       await this.broadcastMessage(notification.message);
     });
 
     this.socket.on("connect_error", (err) => {
-      logger.error(
-        "[CustomMessageService] Socket connection error: " + err.message
-      );
+      logger.error("[CustomMessageService] Socket connection error: " + err.message);
     });
   }
 
@@ -54,9 +48,7 @@ class CustomMessageService {
       });
       return { success: true, messageId: result.message_id };
     } catch (error) {
-      logger.error(
-        `[CustomMessageService] Error sending to user ${userId}: ${error.message}`
-      );
+      logger.error(`[CustomMessageService] Error sending to user ${userId}: ${error.message}`);
       return { success: false, error: error.message };
     }
   }
@@ -64,19 +56,21 @@ class CustomMessageService {
   async broadcastMessage(message, options = {}) {
     try {
       const users = await User.find({});
-      for (const user of users) {
-        try {
-          await this.bot.telegram.sendMessage(user.telegramId, message, {
-            parse_mode: options.parseMode || "Markdown",
-            disable_web_page_preview: options.disablePreview || false,
-            ...options,
-          });
-        } catch (error) {
-          logger.error(
-            `[CustomMessageService] Failed to send message to ${user.telegramId}: ${error.message}`
-          );
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      const batchSize = 25;
+      for (let i = 0; i < users.length; i += batchSize) {
+        const batch = users.slice(i, i + batchSize);
+        await Promise.allSettled(
+          batch.map(user =>
+            this.bot.telegram.sendMessage(user.telegramId, message, {
+              parse_mode: options.parseMode || "Markdown",
+              disable_web_page_preview: options.disablePreview || false,
+              ...options,
+            }).catch(error => {
+              logger.error(`[CustomMessageService] Failed to send message to ${user.telegramId}: ${error.message}`);
+            })
+          )
+        );
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
       return { success: true };
     } catch (error) {

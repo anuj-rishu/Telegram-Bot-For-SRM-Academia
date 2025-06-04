@@ -1,8 +1,10 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const logger = require("../utils/logger");
+const { createLoader } = require("../utils/loader");
 
-function findAttendanceForSlot(slot, att) {
-  return att?.find(
+function findAttendanceForSlot(slot, attendance) {
+  return attendance?.find(
     (c) =>
       (c.courseTitle === slot.name || c.courseTitle === slot.courseTitle) &&
       (c.category === slot.courseType || c.category === slot.category)
@@ -12,102 +14,108 @@ function findAttendanceForSlot(slot, att) {
 const attendanceCache = new Map();
 const CACHE_TIME = 5 * 60 * 1000;
 
-const formatClassSlot = (s) =>
-  `⏰ *${s.startTime} - ${s.endTime}*\n` +
-  `📚 *${s.name || s.courseTitle}* _(${s.courseType || s.category})_\n` +
-  `🏛️ Room: *${s.roomNo || "N/A"}*\n`;
+function formatClassSlot(slot) {
+  return (
+    `⏰ *${slot.startTime} - ${slot.endTime}*\n` +
+    `📚 *${slot.name || slot.courseTitle}* _(${
+      slot.courseType || slot.category
+    })_\n` +
+    `🏛️ Room: *${slot.roomNo || "N/A"}*\n`
+  );
+}
 
-const formatClassSlotWithAttendance = (slot, att) => {
-  const c = findAttendanceForSlot(slot, att);
-  if (!c) return formatClassSlot(slot);
-  const p = +c.attendancePercentage || 0,
-    t = +c.hoursConducted || 0,
-    a = +c.hoursAbsent || 0,
-    pr = t - a;
-  const e = p >= 90 ? "🟢" : p >= 75 ? "🟡" : p >= 60 ? "🟠" : "🔴";
-  let m =
+function formatClassSlotWithAttendance(slot, attendance) {
+  const course = findAttendanceForSlot(slot, attendance);
+  if (!course) return formatClassSlot(slot);
+
+  const percent = +course.attendancePercentage || 0;
+  const total = +course.hoursConducted || 0;
+  const absent = +course.hoursAbsent || 0;
+  const present = total - absent;
+  const emoji =
+    percent >= 90 ? "🟢" : percent >= 75 ? "🟡" : percent >= 60 ? "🟠" : "🔴";
+
+  let msg =
     formatClassSlot(slot) +
-    `\n${e} *Attendance: ${p}%*\n` +
-    `╰┈➤ ✅ Present: *${pr}/${t}*\n` +
-    `╰┈➤ ❌ Absent: *${a}*\n`;
-  m +=
-    p >= 75
+    `\n${emoji} *Attendance: ${percent}%*\n` +
+    `╰┈➤ ✅ Present: *${present}/${total}*\n` +
+    `╰┈➤ ❌ Absent: *${absent}*\n`;
+
+  msg +=
+    percent >= 75
       ? `╰┈➤ 🎯 *Can skip:* _${Math.max(
           0,
-          pr > 0 ? Math.floor(pr / 0.75 - t) : 0
+          present > 0 ? Math.floor(present / 0.75 - total) : 0
         )} more class(es)_\n`
       : `╰┈➤ 📌 *Need to attend:* _${Math.max(
           1,
-          t > 0 ? Math.ceil((0.75 * t - pr) / 0.25) : 1
+          total > 0 ? Math.ceil((0.75 * total - present) / 0.25) : 1
         )} more class(es)_\n`;
-  return m;
-};
 
-const removeConsecutiveLines = (msg) =>
-  msg.replace(/(━━━━━━━━━━━━\n){2,}/g, "");
+  return msg;
+}
 
-const createLoaderAnimation = async (ctx, txt) => {
-  const f = ["⏳", "⌛️"],
-    msg = await ctx.reply(`${f[0]} ${txt}`);
-  let i = 0,
-    id = setInterval(() => {
-      i = (i + 1) % f.length;
-      ctx.telegram
-        .editMessageText(
-          ctx.chat.id,
-          msg.message_id,
-          undefined,
-          `${f[i]} ${txt}`
-        )
-        .catch(() => clearInterval(id));
-    }, 800);
-  return { messageId: msg.message_id, stop: () => clearInterval(id) };
-};
+async function fetchAttendanceData(session) {
+  const key = session.token;
+  const now = Date.now();
+  const cached = attendanceCache.get(key);
 
-const fetchAttendanceData = async (session) => {
-  const k = session.token,
-    now = Date.now(),
-    c = attendanceCache.get(k);
-  if (c && now - c.timestamp < CACHE_TIME) return c.data;
+  if (cached && now - cached.timestamp < CACHE_TIME) return cached.data;
+
   try {
-    const r = await apiService.makeAuthenticatedRequest("/attendance", session);
-    const d = r.data?.attendance || [];
-    attendanceCache.set(k, { data: d, timestamp: now });
-    return d;
-  } catch {
+    const response = await apiService.makeAuthenticatedRequest(
+      "/attendance",
+      session
+    );
+    const data = response.data?.attendance || [];
+    attendanceCache.set(key, { data, timestamp: now });
+    return data;
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Timetable attendance fetch error:", error.message || error);
+    }
     return [];
   }
-};
+}
 
-const handleTimetableGeneric = async (
+async function handleTimetableGeneric(
   ctx,
   endpoint,
   title,
   noClassMsg,
   includeAttendance = false
-) => {
+) {
   const session = sessionManager.getSession(ctx.from.id);
   if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
-  const loader = await createLoaderAnimation(
-    ctx,
-    `Fetching ${title.toLowerCase()}...`
-  );
+
+  const loaderPromise = createLoader(ctx, `Fetching ${title.toLowerCase()}...`);
+  const apiPromise = apiService.makeAuthenticatedRequest(endpoint, session);
+  const attendancePromise = includeAttendance
+    ? fetchAttendanceData(session)
+    : Promise.resolve([]);
+
+  const [loader, apiResponse, attendance] = await Promise.all([
+    loaderPromise,
+    apiPromise,
+    attendancePromise,
+  ]);
+
   try {
-    const [tr, att] = await Promise.all([
-      apiService.makeAuthenticatedRequest(endpoint, session),
-      includeAttendance ? fetchAttendanceData(session) : [],
-    ]);
     loader.stop();
-    const d = tr.data,
-      fn = includeAttendance
-        ? (s) => formatClassSlotWithAttendance(s, att)
-        : formatClassSlot;
+    const data = apiResponse.data;
+    const formatFn = includeAttendance
+      ? (slot) => formatClassSlotWithAttendance(slot, attendance)
+      : formatClassSlot;
+
     let msg = `*${title}*\n${
-      d.dayOrder && d.dayOrder !== "-" ? `📅 Day Order: *${d.dayOrder}*\n` : ""
+      data.dayOrder && data.dayOrder !== "-"
+        ? `📅 Day Order: *${data.dayOrder}*\n`
+        : ""
     }\n`;
-    msg += d.classes?.length
-      ? d.classes.map(fn).join("\n")
+    msg += data.classes?.length
+      ? data.classes.map(formatFn).join("\n")
       : `✨ ${noClassMsg}`;
+
     await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
@@ -117,41 +125,56 @@ const handleTimetableGeneric = async (
     );
   } catch (e) {
     loader.stop();
-    ctx.telegram.editMessageText(
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Timetable fetch error:", e.message || e);
+    }
+    await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
       undefined,
       `❌ Error: ${e.response?.data?.error || e.message || "Unknown error"}`
     );
   }
-};
+}
 
-const handleTimetable = async (ctx, includeAttendance = false) => {
+async function handleTimetable(ctx, includeAttendance = false) {
   const session = sessionManager.getSession(ctx.from.id);
   if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
-  const loader = await createLoaderAnimation(
+
+  const loaderPromise = createLoader(
     ctx,
     "Fetching your complete timetable..."
   );
+  const apiPromise = apiService.makeAuthenticatedRequest("/timetable", session);
+  const attendancePromise = includeAttendance
+    ? fetchAttendanceData(session)
+    : Promise.resolve([]);
+
+  const [loader, apiResponse, attendance] = await Promise.all([
+    loaderPromise,
+    apiPromise,
+    attendancePromise,
+  ]);
+
   try {
-    const [tr, att] = await Promise.all([
-      apiService.makeAuthenticatedRequest("/timetable", session),
-      includeAttendance ? fetchAttendanceData(session) : [],
-    ]);
     loader.stop();
-    const d = tr.data,
-      fn = includeAttendance
-        ? (s) => formatClassSlotWithAttendance(s, att)
-        : formatClassSlot;
+    const data = apiResponse.data;
+    const formatFn = includeAttendance
+      ? (slot) => formatClassSlotWithAttendance(slot, attendance)
+      : formatClassSlot;
+
     let msg = "📋 *Complete Timetable*\n\n";
-    if (d?.schedule?.length) {
-      for (const day of d.schedule) {
+    if (data?.schedule?.length) {
+      for (const day of data.schedule) {
         msg += `\n📌 *Day ${day.day}*\n`;
         msg += day.table?.length
-          ? day.table.map(fn).join("\n")
+          ? day.table.map(formatFn).join("\n")
           : `😴 No classes scheduled\n`;
       }
-    } else msg += "❌ No timetable data available.";
+    } else {
+      msg += "❌ No timetable data available.";
+    }
+
     await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
@@ -161,27 +184,31 @@ const handleTimetable = async (ctx, includeAttendance = false) => {
     );
   } catch (e) {
     loader.stop();
-    ctx.telegram.editMessageText(
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Timetable fetch error:", e.message || e);
+    }
+    await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
       undefined,
       `❌ Error: ${e.response?.data?.error || e.message || "Unknown error"}`
     );
   }
-};
+}
 
-const handleAttendance = async (ctx) => {
+async function handleAttendance(ctx) {
   const session = sessionManager.getSession(ctx.from.id);
   if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
-  const loader = await createLoaderAnimation(
-    ctx,
-    "Fetching your attendance data..."
-  );
+
+  const loader = await createLoader(ctx, "Fetching your attendance data...");
   try {
-    const r = await apiService.makeAuthenticatedRequest("/attendance", session);
+    const response = await apiService.makeAuthenticatedRequest(
+      "/attendance",
+      session
+    );
     loader.stop();
-    const att = r.data?.attendance;
-    if (!att?.length)
+    const attendance = response.data?.attendance;
+    if (!attendance?.length) {
       return ctx.telegram.editMessageText(
         ctx.chat.id,
         loader.messageId,
@@ -189,9 +216,11 @@ const handleAttendance = async (ctx) => {
         "❌ *No attendance data available.*",
         { parse_mode: "Markdown" }
       );
+    }
+
     let total = 0,
       absent = 0;
-    att.forEach((c) => {
+    attendance.forEach((c) => {
       total += +c.hoursConducted || 0;
       absent += +c.hoursAbsent || 0;
     });
@@ -199,8 +228,9 @@ const handleAttendance = async (ctx) => {
       total > 0 ? (((total - absent) / total) * 100).toFixed(2) : 0;
     const emoji =
       percent >= 90 ? "🟢" : percent >= 75 ? "🟡" : percent >= 60 ? "🟠" : "🔴";
+
     let msg = `📊 *YOUR ATTENDANCE SUMMARY*\n\n${emoji} *Overall: ${percent}%*\n📚 *Total Classes: ${total}*\n`;
-    for (const c of att) {
+    for (const c of attendance) {
       const t = +c.hoursConducted || 0,
         a = +c.hoursAbsent || 0,
         p = t - a,
@@ -230,14 +260,17 @@ const handleAttendance = async (ctx) => {
     );
   } catch (e) {
     loader.stop();
-    ctx.telegram.editMessageText(
+    if (process.env.NODE_ENV === "production") {
+      logger.error("Attendance fetch error:", e.message || e);
+    }
+    await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
       undefined,
       `❌ Error: ${e.response?.data?.error || e.message || "Unknown error"}`
     );
   }
-};
+}
 
 module.exports = {
   handleTimetable,
