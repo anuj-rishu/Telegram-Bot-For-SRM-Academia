@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRM Academia Bot Documentation</title>
+  <meta name="theme-color" content="#000000">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.5.0/dist/mermaid.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/styles/atom-one-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background: #0a0a0a;
+      color: #e5e7eb;
+    }
+    .mermaid {
+      background: #18181b !important;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 8px #000a;
+      overflow-x: auto;
+    }
+    pre, code {
+      background: #18181b !important;
+      color: #e5e7eb !important;
+      border-radius: 0.5rem;
+    }
+    nav a { transition: color .2s; }
+    nav a:hover { color: #60a5fa !important; }
+    .section-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 1rem;
+      box-shadow: 0 2px 8px #000a;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .footer-logo {
+      filter: drop-shadow(0 2px 8px #000a);
+    }
+    /* Mermaid dark theme override */
+    .mermaid svg {
+      background: #18181b !important;
+      color: #e5e7eb !important;
+    }
+ 
+    @media (max-width: 640px) {
+      .section-card {
+        padding: 1.25rem;
+        border-radius: 0.75rem;
+      }
+      .mermaid {
+        padding: 1rem;
+      }
+    }
+
+    @media print {
+      .no-print { display: none; }
+    }
+    /* Mobile navigation */
+    .mobile-nav {
+      display: none;
+    }
+    @media (max-width: 768px) {
+      .desktop-nav {
+        display: none;
+      }
+      .mobile-nav {
+        display: block;
+      }
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: "#0a0a0a",
+            darkCard: "#18181b",
+            darkBorder: "#27272a",
+            accent: "#60a5fa"
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-black text-gray-200">
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-gray-900 to-black text-white py-6 sm:py-8 border-b border-gray-800">
+    <div class="container mx-auto px-4 flex flex-col items-center">
+      <i class="fab fa-telegram text-4xl sm:text-5xl mb-3 text-blue-400"></i>
+      <h1 class="text-3xl sm:text-4xl font-bold text-blue-300 text-center">SRM Academia Telegram Bot</h1>
+      <p class="mt-2 text-base sm:text-lg text-gray-300 text-center px-2">A comprehensive Telegram bot for SRM University students</p>
+    </div>
+  </header>
+  
+  <!-- Desktop Navigation -->
+  <nav class="desktop-nav bg-black text-white sticky top-0 z-10 shadow-md no-print border-b border-gray-800">
+    <div class="container mx-auto px-4 flex justify-center">
+      <ul class="flex flex-wrap space-x-4 sm:space-x-8 py-4 text-sm sm:text-lg">
+        <li><a href="#overview"><i class="fas fa-home mr-2"></i>Overview</a></li>
+        <li><a href="#architecture"><i class="fas fa-sitemap mr-2"></i>Architecture</a></li>
+        <li><a href="#features"><i class="fas fa-list-check mr-2"></i>Features</a></li>
+        <li><a href="#flowcharts"><i class="fas fa-diagram-project mr-2"></i>Flowcharts</a></li>
+        <li><a href="#security"><i class="fas fa-shield-halved mr-2"></i>Security</a></li>
+        <li>
+        <li><a href="./privacy.html"><i class="fas fa-user-shield mr-2"></i>Privacy & Policy</a></li>
+          <a href="https://github.com/anuj-rishu/Telegram-Bot-For-SRM-Academia" target="_blank" rel="noopener noreferrer">
+            <i class="fab fa-github text-xl"></i>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+  
+  <!-- Mobile Navigation -->
+  <nav class="mobile-nav bg-black text-white sticky top-0 z-10 shadow-md no-print border-b border-gray-800 overflow-x-auto">
+    <div class="container mx-auto px-2 flex">
+      <div class="flex space-x-4 py-3 min-w-full justify-between text-sm">
+        <a href="#overview" class="whitespace-nowrap"><i class="fas fa-home mr-1"></i>Overview</a>
+        <a href="#architecture" class="whitespace-nowrap"><i class="fas fa-sitemap mr-1"></i>Architecture</a>
+        <a href="#features" class="whitespace-nowrap"><i class="fas fa-list-check mr-1"></i>Features</a>
+        <a href="#flowcharts" class="whitespace-nowrap"><i class="fas fa-diagram-project mr-1"></i>Flowcharts</a>
+        <a href="#security" class="whitespace-nowrap"><i class="fas fa-shield-halved mr-1"></i>Security</a>
+     <a href="./privacy.html" class="whitespace-nowrap"><i class="fas fa-user-shield mr-1"></i>Privacy</a>
+        <a href="https://github.com/anuj-rishu/srm-academia-bot" target="_blank" class="whitespace-nowrap">
+          <i class="fab fa-github"></i>
+        </a>
+      </div>
+    </div>
+  </nav>
+  
+  <!-- Main Content -->
+  <main class="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+    <!-- Overview -->
+    <section id="overview" class="section-card">
+      <h2 class="text-2xl sm:text-3xl font-bold mb-4 flex items-center"><i class="fas fa-home text-blue-500 mr-3"></i>Overview</h2>
+      <p class="mb-4 text-base sm:text-lg">
+        The SRM Academia Telegram Bot is a comprehensive tool for SRM University students to access academic info, manage tasks, and receive timely notifications about classes, marks, and attendance.
+      </p>
+      <p class="mb-4 text-sm sm:text-base">
+        Built with Node.js and Telegraf, the bot integrates with multiple backend services for seamless access to academic data directly from Telegram.
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mt-6">
+        <div class="bg-black/60 border-l-4 border-blue-500 p-3 sm:p-4 rounded-lg">
+          <i class="fas fa-server text-blue-400 mr-2"></i>
+          <b>Main API Server</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">Academic data (EC2 t2.micro)</span>
+        </div>
+        <div class="bg-black/60 border-l-4 border-green-500 p-3 sm:p-4 rounded-lg">
+          <i class="fas fa-bell text-green-400 mr-2"></i>
+          <b>Notification Server</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">Real-time updates (Heroku)</span>
+        </div>
+        <div class="bg-black/60 border-l-4 border-yellow-500 p-3 sm:p-4 rounded-lg">
+          <i class="fas fa-search text-yellow-400 mr-2"></i>
+          <b>Lost Item Server</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">Lost & Found (Vercel)</span>
+        </div>
+        <div class="bg-black/60 border-l-4 border-indigo-500 p-3 sm:p-4 rounded-lg">
+          <i class="fas fa-vault text-indigo-400 mr-2"></i>
+          <b>Vaultify Server</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">Docs storage (Heroku)</span>
+        </div>
+        <div class="bg-black/60 border-l-4 border-red-500 p-3 sm:p-4 rounded-lg">
+          <i class="fas fa-chair text-red-400 mr-2"></i>
+          <b>Seat Finder</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">Exam seat allocation (Heroku)</span>
+        </div>
+        <div class="bg-black/60 border-l-4 border-purple-500 p-3 sm:p-4 rounded-lg">
+          <i class="fas fa-user-graduate text-purple-400 mr-2"></i>
+          <b>Student Portal</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">Secondary academic system (EC2)</span>
+        </div>
+        <div class="bg-black/60 border-l-4 border-blue-500 p-3 sm:p-4 rounded-lg col-span-full">
+          <i class="fab fa-telegram text-blue-400 mr-2"></i>
+          <b>Telegram Bot</b><br>
+          <span class="text-xs sm:text-sm text-gray-400">User interface (EC2 t3.micro)</span>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Architecture -->
+    <section id="architecture" class="section-card">
+      <h2 class="text-2xl sm:text-3xl font-bold mb-4 flex items-center"><i class="fas fa-sitemap text-blue-500 mr-3"></i>System Architecture</h2>
+      <div class="mb-6">
+        <h3 class="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+          <i class="fas fa-code text-blue-400 mr-2"></i>Bot Components
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div>
+            <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+              <li><b>bot.js:</b> Main bot setup, command handlers</li>
+              <li><b>server.js:</b> Express server & DB connection</li>
+              <li><b>Controllers:</b> Command logic</li>
+              <li><b>Services:</b> External API communication</li>
+              <li><b>Scenes:</b> Multi-step interactions</li>
+              <li><b>Middlewares:</b> Auth & request processing</li>
+            </ul>
+          </div>
+          <div>
+            <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+              <li><b>Models:</b> MongoDB schemas</li>
+              <li><b>Notification Services:</b> For different types</li>
+              <li><b>Session Manager:</b> User auth state</li>
+              <li><b>Config:</b> Env & server configs</li>
+              <li><b>Utils:</b> Helper functions</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="mt-8 sm:mt-10">
+        <h3 class="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+          <i class="fas fa-project-diagram text-blue-400 mr-2"></i>Architecture Diagram
+        </h3>
+        <div class="mermaid" id="arch-diagram">
+graph TD
+  A[Telegram API] <---> B[SRM Academia Bot<br>EC2 t3.micro]
+  B --> C[MongoDB Database]
+  B --> D[Academia API<br>EC2 t2.micro]
+  B --> E[Student Portal<br>EC2 t2.micro]
+  B --> F[Notification<br>Server<br>Heroku]
+  B --> G[Lost Item<br>Server<br>Vercel]
+  B --> H[Vaultify<br>Server<br>Heroku]
+  B --> I[Seat Finder<br>Heroku]
+  B --> J[Groq AI API]
+  classDef node fill:#23272f,stroke:#60a5fa,stroke-width:2px,color:#e5e7eb
+  class A,B,C,D,E,F,G,H,I,J node
+        </div>
+      </div>
+    </section>
+    
+    <!-- Features -->
+    <section id="features" class="section-card">
+      <h2 class="text-2xl sm:text-3xl font-bold mb-4 flex items-center"><i class="fas fa-list-check text-blue-500 mr-3"></i>Bot Features</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 mb-8">
+        <div>
+          <h3 class="text-lg sm:text-xl font-semibold text-blue-400 mb-2"><i class="fas fa-user-graduate mr-2"></i>Academic Info</h3>
+          <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+            <li>Attendance tracking with analytics</li>
+            <li>View marks for all subjects</li>
+            <li>List enrolled courses with details</li>
+            <li>Weekly & daily timetable</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-lg sm:text-xl font-semibold text-green-400 mb-2"><i class="fas fa-bell mr-2"></i>Notification System</h3>
+          <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+            <li>Class reminders (30 & 5 min before)</li>
+            <li>Daily schedule at 7:01 AM</li>
+            <li>Real-time marks & attendance updates</li>
+            <li>Task reminders</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-lg sm:text-xl font-semibold text-purple-400 mb-2"><i class="fas fa-clipboard-list mr-2"></i>Additional Features</h3>
+          <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+            <li>Task management with reminders</li>
+            <li>Lost & Found portal</li>
+            <li>Document vault</li>
+            <li>AI assistant for academic queries</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-lg sm:text-xl font-semibold text-red-400 mb-2"><i class="fas fa-id-card mr-2"></i>Portal Integration</h3>
+          <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+            <li>Hall ticket access</li>
+            <li>Exam seat notifications</li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Feature Flow Diagram -->
+      <h3 class="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+        <i class="fas fa-sitemap text-blue-400 mr-2"></i>Feature Interaction Flow
+      </h3>
+      <div class="mermaid">
+flowchart TD
+  A[User] --> B{Command Type}
+  B -->|Academic| C[Academic Data]
+  B -->|Notification| D[Notification]
+  B -->|Utility| E[Utility]
+  B -->|Portal| F[Portal]
+  C --> G[Cache?]
+  G -->|Yes| H[Return Data]
+  G -->|No| I[Fetch API]
+  I --> J[Update Cache]
+  J --> H
+  D --> K[Notification Manager]
+  K --> L[Schedule]
+  K --> M[Real-time]
+  E --> N[Task Manager]
+  E --> O[Lost & Found]
+  E --> P[Vault]
+  F --> Q[Portal API]
+  Q --> R[Hall Tickets]
+  Q --> S[Seat Allocation]
+  classDef node fill:#23272f,stroke:#60a5fa,stroke-width:2px,color:#e5e7eb
+  classDef decision fill:#facc15,stroke:#f59e42,stroke-width:2px,color:#18181b
+  class A,B,G decision
+  class C,D,E,F,H,I,J,K,L,M,N,O,P,Q,R,S node
+      </div>
+    </section>
+    
+    <!-- Flowcharts -->
+    <section id="flowcharts" class="section-card">
+      <h2 class="text-2xl sm:text-3xl font-bold mb-4 flex items-center"><i class="fas fa-diagram-project text-blue-500 mr-3"></i>Process Flowcharts</h2>
+      <h3 class="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+        <i class="fas fa-key text-blue-400 mr-2"></i>Authentication Flow
+      </h3>
+      <div class="mermaid">
+sequenceDiagram
+  participant User
+  participant Bot
+  participant API as Academia API
+  participant DB as MongoDB
+  User->>Bot: /login
+  Bot->>User: Request credentials
+  User->>Bot: Send creds
+  Bot->>API: Validate
+  API->>Bot: Token
+  Bot->>DB: Save user
+  Bot->>Bot: Store token
+  Bot->>API: Fetch data
+  API->>Bot: Academic data
+  Bot->>User: Success
+      </div>
+      <h3 class="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+        <i class="fas fa-bell text-green-400 mr-2"></i>Notification Flow
+      </h3>
+      <div class="mermaid">
+graph TD
+  A[Scheduled Job] --> B[Trigger]
+  B --> C[API Request]
+  C --> D[Analyze]
+  D --> E[Compare]
+  E --> F{Changes?}
+  F -->|Yes| G[Format message]
+  F -->|No| H[Update timestamp]
+  G --> I[Send notification]
+  classDef node fill:#23272f,stroke:#60a5fa,stroke-width:2px,color:#e5e7eb
+  classDef decision fill:#facc15,stroke:#f59e42,stroke-width:2px,color:#18181b
+  class A,B,C,D,E,G,H,I node
+  class F decision
+      </div>
+      <h3 class="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+        <i class="fas fa-exchange-alt text-purple-400 mr-2"></i>User Request Flow
+      </h3>
+      <div class="mermaid">
+sequenceDiagram
+  participant User
+  participant Bot
+  participant Auth
+  participant API
+  participant Controller
+  User->>Bot: /attendance
+  Bot->>Auth: Identify
+  Auth->>API: Validate session
+  API->>Auth: Result
+  Auth->>API: Request data
+  API->>Controller: Return data
+  Controller->>Bot: Process
+  Bot->>User: Response
+      </div>
+    </section>
+    
+    <!-- Security -->
+    <section id="security" class="section-card">
+      <h2 class="text-2xl sm:text-3xl font-bold mb-4 flex items-center"><i class="fas fa-shield-halved text-blue-500 mr-3"></i>Security Measures</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="text-lg sm:text-xl font-semibold mb-3 text-indigo-400 flex items-center">
+            <i class="fas fa-lock mr-2"></i>Authentication & Data Protection
+          </h3>
+          <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+            <li>Credentials deleted from chat after login</li>
+            <li>Tokens stored securely in session</li>
+            <li>Session validation before sensitive data</li>
+            <li>HTTPS for all API comms</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-lg sm:text-xl font-semibold mb-3 text-indigo-400 flex items-center">
+            <i class="fas fa-shield-alt mr-2"></i>Protection Features
+          </h3>
+          <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base">
+            <li>Regular dependency security reviews</li>
+            <li>Rate limiting to prevent abuse</li>
+            <li>Automatic token expiry</li>
+            <li>Error handling to prevent info leakage</li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-6 sm:mt-8">
+        <h3 class="text-lg sm:text-xl font-semibold mb-4 text-blue-400 flex items-center">
+          <i class="fas fa-fingerprint mr-2"></i>Data Integrity & API Abuse Prevention
+        </h3>
+        <ul class="list-disc pl-5 sm:pl-6 text-gray-300 text-sm sm:text-base mb-4">
+          <li>Minute-by-minute hash verification for attendance/marks</li>
+          <li>Full data fetched only if hash changes</li>
+          <li>Tiered API rate limiting</li>
+          <li>Adaptive polling intervals</li>
+        </ul>
+        <div class="mermaid">
+flowchart TD
+  A[Scheduler triggers check] --> B[For each student]
+  B --> C[Request hash]
+  C --> D[Compare with stored]
+  D --> E{Hash changed?}
+  E -->|No| F[Update timestamp]
+  E -->|Yes| G[Fetch full data]
+  G --> H[Notify user]
+  subgraph "API ABUSE PREVENTION"
+    I[Client Request] --> J[API Gateway]
+    J --> K[Rate Limiter]
+    K --> L[Check quotas]
+    L --> M{Within limits?}
+    M -->|Yes| N[Process request]
+    M -->|No| O[Return 429 error]
+  end
+  classDef node fill:#23272f,stroke:#60a5fa,stroke-width:2px,color:#e5e7eb
+  classDef decision fill:#facc15,stroke:#f59e42,stroke-width:2px,color:#18181b
+  class A,B,C,D,F,G,H,I,J,K,L,N,O node
+  class E,M decision
+        </div>
+      </div>
+      <div class="mt-6 p-3 sm:p-4 bg-yellow-900/40 border-l-4 border-yellow-500 rounded">
+        <h3 class="font-medium text-yellow-400 mb-2 flex items-center text-sm sm:text-base">
+          <i class="fas fa-user-shield mr-2"></i>Security Best Practices for Users
+        </h3>
+        <ul class="pl-4 sm:pl-5 list-disc text-xs sm:text-sm text-yellow-300">
+          <li>Never share your bot sessions</li>
+          <li>Use /logout on shared devices</li>
+          <li>Set up 2FA on Telegram</li>
+          <li>Use the official bot (@srm_academia_bot)</li>
+          <li>Report suspicious behavior</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+  
+  <!-- Footer -->
+ <footer class="bg-gradient-to-r from-gray-900 to-black text-white py-5 sm:py-6">
+    <div class="container mx-auto flex flex-col items-center px-3">
+        <div class="p-2 h-28 sm:h-36 md:h-40 w-full max-w-xs">
+            <img src="https://res.cloudinary.com/dtberehdy/image/upload/v1748930803/erasebg-transformed_nrmbkv.png" alt="SRM Insider Logo" class="h-full w-full object-cover object-center mx-auto footer-logo ">
+        </div>
+        <div class="text-center mt-0">
+            <p class="text-xs sm:text-sm text-White-300">Part of SRM Insider Community</p>
+            <p class="text-xs text-White-400 mt-1">© 2025 SRM Insider. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+  
+  <script>
+    // Mermaid dark theme
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      flowchart: { curve: 'basis', useMaxWidth: true },
+      securityLevel: 'loose'
+    });
+    // Highlight.js
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightBlock(block);
+      });
+    });
+  </script>
+</body>
+</html>
