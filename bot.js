@@ -93,13 +93,12 @@ bot.command("login", (ctx) => ctx.scene.enter("login"));
 // **temp stop**
 // bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
 
+
 //  Notification services
 
-//  ***temp stop**
-// new NotificationService(bot);
+new NotificationService(bot);
 new MarksNotificationService(bot);
-//  ***temp stop**
-// new AttendanceNotificationService(bot);
+new AttendanceNotificationService(bot);
 new TaskNotificationService(bot);
 
 //hall ticket notification
@@ -119,7 +118,9 @@ attendancePredictionController.initGroqService(bot);
 bot.command("logout", requireLogin, authController.handleLogout);
 // logout from sp
 
-bot.command("logoutsp", studentPortalController.handleLogout);
+
+// **temp stop**
+// bot.command("logoutsp", studentPortalController.handleLogout);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
