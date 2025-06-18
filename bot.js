@@ -62,7 +62,7 @@ const stage = new Scenes.Stage([
   attendancePredictionScene,
   lostItemScene,
   uploadDocumentScene,
-  // loginStudentPortalScene,  **temp stop**
+  loginStudentPortalScene,
 ]);
 
 // Middleware
@@ -90,13 +90,11 @@ bot.start((ctx) => {
 // Login command
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 // Login to SP command
-// **temp stop**
-// bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
-
+bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
 
 //  Notification services
 
-new NotificationService(bot);
+// new NotificationService(bot);
 new MarksNotificationService(bot);
 new AttendanceNotificationService(bot);
 new TaskNotificationService(bot);
@@ -118,9 +116,7 @@ attendancePredictionController.initGroqService(bot);
 bot.command("logout", requireLogin, authController.handleLogout);
 // logout from sp
 
-
-// **temp stop**
-// bot.command("logoutsp", studentPortalController.handleLogout);
+bot.command("logoutsp", studentPortalController.handleLogout);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
