@@ -9,4 +9,5 @@ module.exports = {
   STUDENT_PORTAL_API_URL: process.env.STUDENT_PORTAL_API_URL,
   PRIVACY_URL: process.env.PRIVACY_URL,
   MONGODB_URI: process.env.MONGODB_URI,
+  TASK_SERVICE_URL: process.env.TASK_SERVICE_URL,
 };

@@ -1,7 +1,16 @@
 const { Telegraf, Scenes, session } = require("telegraf");
 const config = require("./config/config");
+const logger = require("./utils/logger");
+
+// Initialization of  bot 
+const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+//middlewares
 const { requireLogin } = require("./middlewares/ authMiddleware");
-const loginScene = require("./scenes/loginScene");
+const {
+  requireStudentPortalLogin,
+} = require("./middlewares/studentPortalAuthMiddleware");
+
+//controllers
 const authController = require("./controllers/authController");
 const attendanceController = require("./controllers/attendanceController");
 const marksController = require("./controllers/marksController");
@@ -9,40 +18,31 @@ const coursesController = require("./controllers/coursesController");
 const userController = require("./controllers/userController");
 const timetableController = require("./controllers/timetableController");
 const calendarController = require("./controllers/calendarController");
+const lostItemController = require("./controllers/lostItemController");
+const taskController = require("./controllers/taskController");
+const attendancePredictionController = require("./controllers/attendancePredictionController");
+const documentController = require("./controllers/documentController");
+const hallTicketController = require("./controllers/hallTicketController");
+const studentPortalController = require("./controllers/studentPortalController");
+const cgpaController = require("./controllers/cgpaController");
+
 //notification service
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
-//found and lost
-const lostItemScene = require("./scenes/lostItemScene");
-const lostItemController = require("./controllers/lostItemController");
-// Task notification
-const taskScene = require("./scenes/taskScene");
-const taskController = require("./controllers/taskController");
-const TaskNotificationService = require("./notification/taskNotification");
-//custom message
-const CustomMessageService = require("./services/customMessageService");
-//attendance prediction
-const attendancePredictionScene = require("./scenes/attendancePredictionScene");
-const attendancePredictionController = require("./controllers/attendancePredictionController");
-//vault service
-const uploadDocumentScene = require("./scenes/uploadDocumentScene");
-const documentController = require("./controllers/documentController");
-//seat finder service
+const HallTicketNotificationService = require("./notification/hallTicketNotificationService");
 const SeatFinderService = require("./notification/seatFinderService");
 
-//sp service
+//scenes
+const loginScene = require("./scenes/loginScene");
+const lostItemScene = require("./scenes/lostItemScene");
+const taskScene = require("./scenes/taskScene");
+const attendancePredictionScene = require("./scenes/attendancePredictionScene");
+const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 const loginStudentPortalScene = require("./scenes/loginStudentPortalScene");
-const hallTicketController = require("./controllers/hallTicketController");
-const studentPortalController = require("./controllers/studentPortalController");
-const HallTicketNotificationService = require("./notification/hallTicketNotificationService");
-const {
-  requireStudentPortalLogin,
-} = require("./middlewares/studentPortalAuthMiddleware");
 
-const logger = require("./utils/logger");
-
-const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+//services
+const CustomMessageService = require("./services/customMessageService");
 
 global.botInstance = bot;
 
@@ -55,7 +55,7 @@ bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   }
 };
 
-//scenes
+//scenes initialization
 const stage = new Scenes.Stage([
   loginScene,
   taskScene,
@@ -65,73 +65,49 @@ const stage = new Scenes.Stage([
   loginStudentPortalScene,
 ]);
 
-// Middleware
+// Middleware initialization
 bot.use(session());
 bot.use(stage.middleware());
 
+//bot starts
 bot.start((ctx) => {
   ctx.replyWithMarkdown(
     "Welcome to the SRM Academia Bot! 🎓\n\n" +
       "Easily access your SRM academic data with this bot.\n\n" +
-      "📌 Features:\n" +
-      "✅ Get real-time notifications when your marks or attendance are updated.\n" +
-      "✅ Receive a reminder 5 min before your upcoming class.\n" +
-      "✅ Get your scheduled classes for the day at 7 AM every morning.\n" +
-      "✅ Manage tasks with custom reminders and due dates.\n\n" +
       "Use the commands from ☱ MENU to navigate.\n" +
       "To get started, type /login.\n\n" +
+      "*Powered by SRM INSIDER COMMUNITY (SIC)*\n\n" +
       "🧑‍💻 Developed by Anuj Rishu Tiwari\n" +
       "[GitHub](https://github.com/anuj-rishu)\n" +
-      "[LinkedIn](https://linkedin.com/in/anuj-rishu)\n" +
-      "[Instagram](https://instagram.com/anuj_rishu)"
+      "[LinkedIn](https://linkedin.com/in/anuj-rishu)\n"
   );
 });
 
-// Login command
-bot.command("login", (ctx) => ctx.scene.enter("login"));
-// Login to SP command
-bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
-
 //  Notification services
-
-// new NotificationService(bot);
 new MarksNotificationService(bot);
-new AttendanceNotificationService(bot);
-new TaskNotificationService(bot);
-
-//hall ticket notification
-
-// ***temp stop**
+// new AttendanceNotificationService(bot);
 // new HallTicketNotificationService(bot);
-
-//seat allocation
-
-//***temp stop***
 // new SeatFinderService(bot);
+// hallTicketController.initialize(bot);
+taskController.initTaskService(bot);
+
+
+//Authentication service
+bot.command("login", (ctx) => ctx.scene.enter("login"));
+bot.command("logout", requireLogin, authController.handleLogout);
+bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
+bot.command("logoutsp", studentPortalController.handleLogout);
 
 //attendance prediction
 attendancePredictionController.initGroqService(bot);
-
-// Logout command
-bot.command("logout", requireLogin, authController.handleLogout);
-// logout from sp
-
-bot.command("logoutsp", studentPortalController.handleLogout);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
 bot.messageService = messageService;
 
-// Attendance command
+//Academic commands
 bot.command("attendance", requireLogin, attendanceController.handleAttendance);
-
-// Courses command
 bot.command("courses", requireLogin, coursesController.handleCourses);
-
-// User info command
-bot.command("user", requireLogin, userController.handleUserInfo);
-
-// Timetable commands
 bot.command("timetable", requireLogin, timetableController.handleTimetable);
 bot.command(
   "todaysclass",
@@ -148,41 +124,28 @@ bot.command(
   requireLogin,
   timetableController.handleDayAfterTomorrowTimetable
 );
-
-// Calendar command
 bot.command("calendar", requireLogin, calendarController.handleCalendar);
-
-// Marks command
 bot.command("marks", requireLogin, marksController.handleMarks);
+bot.command("cgpa", cgpaController.handleCGPA);
+bot.command("user", requireLogin, userController.handleUserInfo);
+// bot.command(
+//   "hallticket",
+//   requireStudentPortalLogin,
+//   hallTicketController.handleHallTicket
+// );
 
-// Task-related commands
-bot.command("addtask", requireLogin, (ctx) => ctx.scene.enter("task"));
-bot.command("tasks", requireLogin, taskController.handleTasksList);
-bot.command("complete", requireLogin, taskController.handleCompleteTask);
-bot.command(
-  "deletetasks",
-  requireLogin,
-  taskController.handleDeleteMultipleTasks
-);
-bot.action(
-  /complete_task:.*|delete_multiple|selection:.*|confirm_multiple_selection|cancel_multiple_selection|confirm_delete_selected/,
-  requireLogin,
-  taskController.handleTaskCallbacks
-);
 
-//prediction
+//Ai Attenddance prediction command
 bot.command("checki", requireLogin, (ctx) =>
   ctx.scene.enter("attendance_prediction")
 );
 
-// report lost item
+//lost and found command
 bot.command(
   "reportlost",
   requireLogin,
   lostItemController.handleReportLostItem
 );
-
-//find lost item
 bot.command("finditem", async (ctx) => {
   try {
     await ctx.reply(
@@ -200,6 +163,22 @@ bot.command("finditem", async (ctx) => {
   }
 });
 
+
+//task command
+bot.command("addtask", requireLogin, (ctx) => ctx.scene.enter("task"));
+bot.command("tasks", requireLogin, taskController.handleTasksList);
+bot.command("complete", requireLogin, taskController.handleCompleteTask);
+bot.command(
+  "deletetasks",
+  requireLogin,
+  taskController.handleDeleteMultipleTasks
+);
+bot.action(
+  /complete_task:.*|delete_multiple|selection:.*|confirm_multiple_selection|cancel_multiple_selection|confirm_delete_selected/,
+  requireLogin,
+  taskController.handleTaskCallbacks
+);
+
 //vault service commands
 bot.command("uploaddoc", requireLogin, documentController.handleUploadDocument);
 bot.command("mydocs", requireLogin, documentController.handleGetDocuments);
@@ -208,15 +187,7 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
   return documentController.handleSendDocument(ctx, documentId);
 });
 
-//hall ticket command (sp)
 
-// hallTicketController.initialize(bot);
-// **temp stop**
-// bot.command(
-//   "hallticket",
-//   requireStudentPortalLogin,
-//   hallTicketController.handleHallTicket
-// );
 
 // Help command
 bot.help((ctx) => {

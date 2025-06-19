@@ -101,7 +101,7 @@ const loginStudentPortalScene = new Scenes.WizardScene(
       );
 
       await ctx.reply(
-        "✅ Student Portal login successful! You can now use commands like /hallticket to access your Student Portal data."
+        "✅ Student Portal login successful! You can now access your academic data."
       );
 
       return ctx.scene.leave();
