@@ -2,7 +2,7 @@ const { Telegraf, Scenes, session } = require("telegraf");
 const config = require("./config/config");
 const logger = require("./utils/logger");
 
-// Initialization of  bot 
+// Initialization of  bot
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 //middlewares
 const { requireLogin } = require("./middlewares/ authMiddleware");
@@ -17,7 +17,10 @@ const marksController = require("./controllers/marksController");
 const coursesController = require("./controllers/coursesController");
 const userController = require("./controllers/userController");
 const timetableController = require("./controllers/timetableController");
-const calendarController = require("./controllers/calendarController");
+const {
+  handleCalendar,
+  handleCalendarCallback,
+} = require("./controllers/calendarController");
 const lostItemController = require("./controllers/lostItemController");
 const taskController = require("./controllers/taskController");
 const attendancePredictionController = require("./controllers/attendancePredictionController");
@@ -91,7 +94,6 @@ new MarksNotificationService(bot);
 // hallTicketController.initialize(bot);
 taskController.initTaskService(bot);
 
-
 //Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 bot.command("logout", requireLogin, authController.handleLogout);
@@ -124,7 +126,12 @@ bot.command(
   requireLogin,
   timetableController.handleDayAfterTomorrowTimetable
 );
-bot.command("calendar", requireLogin, calendarController.handleCalendar);
+bot.command("calendar", handleCalendar);
+bot.on("callback_query", (ctx) => {
+  if (ctx.callbackQuery.data.startsWith("cal_")) {
+    return handleCalendarCallback(ctx);
+  }
+});
 bot.command("marks", requireLogin, marksController.handleMarks);
 bot.command("cgpa", cgpaController.handleCGPA);
 bot.command("user", requireLogin, userController.handleUserInfo);
@@ -133,7 +140,6 @@ bot.command("user", requireLogin, userController.handleUserInfo);
 //   requireStudentPortalLogin,
 //   hallTicketController.handleHallTicket
 // );
-
 
 //Ai Attenddance prediction command
 bot.command("checki", requireLogin, (ctx) =>
@@ -163,7 +169,6 @@ bot.command("finditem", async (ctx) => {
   }
 });
 
-
 //task command
 bot.command("addtask", requireLogin, (ctx) => ctx.scene.enter("task"));
 bot.command("tasks", requireLogin, taskController.handleTasksList);
@@ -186,8 +191,6 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
   const documentId = ctx.match[1];
   return documentController.handleSendDocument(ctx, documentId);
 });
-
-
 
 // Help command
 bot.help((ctx) => {
