@@ -274,7 +274,7 @@ async function showUpcomingEvents(ctx, calendarData) {
 async function showDayOrders(ctx, calendarData) {
   let message = "📊 *Day Order Information*\n\n";
 
-  // Count day orders
+
   const dayOrderCount = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let totalWorkingDays = 0;
 
