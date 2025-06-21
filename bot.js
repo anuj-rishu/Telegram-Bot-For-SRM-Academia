@@ -4,11 +4,9 @@ const logger = require("./utils/logger");
 
 // Initialization of  bot
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
+
 //middlewares
 const { requireLogin } = require("./middlewares/ authMiddleware");
-const {
-  requireStudentPortalLogin,
-} = require("./middlewares/studentPortalAuthMiddleware");
 
 //controllers
 const authController = require("./controllers/authController");
@@ -23,26 +21,18 @@ const {
 } = require("./controllers/calendarController");
 const lostItemController = require("./controllers/lostItemController");
 const taskController = require("./controllers/taskController");
-const attendancePredictionController = require("./controllers/attendancePredictionController");
 const documentController = require("./controllers/documentController");
-const hallTicketController = require("./controllers/hallTicketController");
-const studentPortalController = require("./controllers/studentPortalController");
-const cgpaController = require("./controllers/cgpaController");
 
 //notification service
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
-const HallTicketNotificationService = require("./notification/hallTicketNotificationService");
-const SeatFinderService = require("./notification/seatFinderService");
 
 //scenes
 const loginScene = require("./scenes/loginScene");
 const lostItemScene = require("./scenes/lostItemScene");
 const taskScene = require("./scenes/taskScene");
-const attendancePredictionScene = require("./scenes/attendancePredictionScene");
 const uploadDocumentScene = require("./scenes/uploadDocumentScene");
-const loginStudentPortalScene = require("./scenes/loginStudentPortalScene");
 
 //services
 const CustomMessageService = require("./services/customMessageService");
@@ -62,10 +52,8 @@ bot.telegram.sendMessage = async (chatId, text, options = {}) => {
 const stage = new Scenes.Stage([
   loginScene,
   taskScene,
-  attendancePredictionScene,
   lostItemScene,
   uploadDocumentScene,
-  loginStudentPortalScene,
 ]);
 
 // Middleware initialization
@@ -89,19 +77,12 @@ bot.start((ctx) => {
 //  Notification services
 new MarksNotificationService(bot);
 // new AttendanceNotificationService(bot);
-// new HallTicketNotificationService(bot);
 // new SeatFinderService(bot);
-// hallTicketController.initialize(bot);
 taskController.initTaskService(bot);
 
 //Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 bot.command("logout", requireLogin, authController.handleLogout);
-bot.command("loginsp", (ctx) => ctx.scene.enter("loginStudentPortal"));
-bot.command("logoutsp", studentPortalController.handleLogout);
-
-//attendance prediction
-attendancePredictionController.initGroqService(bot);
 
 // Custom message service
 const messageService = new CustomMessageService(bot);
@@ -133,18 +114,7 @@ bot.on("callback_query", (ctx) => {
   }
 });
 bot.command("marks", requireLogin, marksController.handleMarks);
-bot.command("cgpa", cgpaController.handleCGPA);
 bot.command("user", requireLogin, userController.handleUserInfo);
-// bot.command(
-//   "hallticket",
-//   requireStudentPortalLogin,
-//   hallTicketController.handleHallTicket
-// );
-
-//Ai Attenddance prediction command
-bot.command("checki", requireLogin, (ctx) =>
-  ctx.scene.enter("attendance_prediction")
-);
 
 //lost and found command
 bot.command(
@@ -197,8 +167,6 @@ bot.help((ctx) => {
   ctx.reply(
     "SRM ACADEMIA BOT Commands:\n\n" +
       "/login - Login to your SRM account\n" +
-      "/loginSP - Login to Student Portal\n" +
-      "/checki - Chat with AI\n" +
       "/attendance - Check your attendance\n" +
       "/marks - Check your marks\n" +
       "/timetable - Get your weekly timetable\n" +
@@ -207,7 +175,6 @@ bot.help((ctx) => {
       "/dayafterclass  - Get Day After Tomorrows Class\n" +
       "/user - Get user information\n" +
       "/courses - List enrolled courses\n" +
-      "/hallticket - Get your hall ticket\n" +
       "/uploaddoc - To upload documents\n" +
       "/mydocs - Get uploaded docs \n" +
       "/reportlost - Report Lost Item\n" +
@@ -217,7 +184,6 @@ bot.help((ctx) => {
       "/complete - Mark a task as complete\n" +
       "/deletetasks - Delete multiple tasks\n" +
       "/logout - Log out from your account\n" +
-      "/logoutsp - Logout from Student Portal\n" +
       "/help - Show this help message"
   );
 });

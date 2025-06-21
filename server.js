@@ -4,7 +4,6 @@ const connectDB = require("./config/db");
 const sessionManager = require("./utils/sessionManager");
 const logger = require("./utils/logger");
 
-
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 9000;
@@ -42,12 +41,16 @@ setInterval(() => {
 async function startBot() {
   try {
     await connectDB();
-    logger.info("Database connected successfully");
     global.botInstance = bot;
     await sessionManager.initializeSessions();
     logger.info("Sessions initialized");
     sessionManager.startPeriodicValidation(240); // 4 hours
-    await bot.launch();
+
+    bot.launch().catch((err) => {
+      logger.error(`Bot launch error: ${err.message}`);
+      process.exit(1);
+    });
+
     logger.info("Bot launched successfully");
 
     process.once("SIGINT", () => bot.stop("SIGINT"));

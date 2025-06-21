@@ -1,11 +1,9 @@
 const User = require("../model/user");
-const StudentPortalUser = require("../model/studentPortalUser");
 const InactiveUser = require("../model/inactiveUser");
 const logger = require("./logger");
 const axios = require("axios");
 const config = require("../config/config");
 const sessions = new Map();
-const studentPortalSessions = new Map();
 
 const sessionManager = {
   async initializeSessions() {
@@ -16,16 +14,6 @@ const sessionManager = {
           sessions.set(String(user.telegramId), {
             token: user.token,
             csrfToken: user.token,
-            telegramId: user.telegramId,
-            lastActivity: new Date().toISOString(),
-          });
-        }
-      });
-      const studentPortalUsers = await StudentPortalUser.find({ token: { $exists: true } });
-      studentPortalUsers.forEach((user) => {
-        if (user.token) {
-          studentPortalSessions.set(String(user.telegramId), {
-            token: user.token,
             telegramId: user.telegramId,
             lastActivity: new Date().toISOString(),
           });
@@ -206,7 +194,6 @@ const sessionManager = {
     setTimeout(async () => {
       try {
         await this.validateAllSessions();
-        await this.validateAllStudentPortalSessions();
         await this.transferAllInactiveUsers();
       } catch (error) {
         logger.error(`Error during initial session validation: ${error.message}`);
@@ -215,7 +202,6 @@ const sessionManager = {
     setInterval(async () => {
       try {
         await this.validateAllSessions();
-        await this.validateAllStudentPortalSessions();
         await this.transferAllInactiveUsers();
       } catch (error) {
         logger.error(`Error during periodic session validation: ${error.message}`);
@@ -227,122 +213,6 @@ const sessionManager = {
     return {
       count: sessions.size,
       users: Array.from(sessions.keys()),
-    };
-  },
-
-  async setStudentPortalSession(userId, sessionData) {
-    if (!userId || !sessionData || !sessionData.token) {
-      logger.error("Invalid data provided to setStudentPortalSession");
-      return null;
-    }
-    const enhancedSessionData = {
-      ...sessionData,
-      telegramId: userId,
-      lastActivity: new Date().toISOString(),
-    };
-    studentPortalSessions.set(String(userId), enhancedSessionData);
-    try {
-      await StudentPortalUser.findOneAndUpdate(
-        { telegramId: String(userId) },
-        {
-          telegramId: String(userId),
-          token: sessionData.token,
-          lastLogin: new Date(),
-        },
-        { upsert: true }
-      );
-      return enhancedSessionData;
-    } catch (error) {
-      logger.error(`Error saving student portal session to database: ${error.message}`);
-      return enhancedSessionData;
-    }
-  },
-
-  getStudentPortalSession(userId) {
-    if (!userId) return null;
-    const session = studentPortalSessions.get(String(userId));
-    if (session) {
-      session.lastActivity = new Date().toISOString();
-    }
-    return session;
-  },
-
-  deleteStudentPortalSession(userId) {
-    if (!userId) return false;
-    const sessionExists = studentPortalSessions.has(String(userId));
-    if (!sessionExists) {
-      return false;
-    }
-    const memoryResult = studentPortalSessions.delete(String(userId));
-    StudentPortalUser.findOneAndUpdate(
-      { telegramId: String(userId) },
-      { $unset: { token: 1 } }
-    ).catch((error) => {
-      logger.error(`Error deleting student portal session from database: ${error.message}`);
-    });
-    return memoryResult;
-  },
-
-  getAllStudentPortalSessions() {
-    const sessionsObj = {};
-    for (const [key, value] of studentPortalSessions.entries()) {
-      sessionsObj[key] = value;
-    }
-    return sessionsObj;
-  },
-
-  async validateAllStudentPortalSessions() {
-    const allSessions = this.getAllStudentPortalSessions();
-    const userIds = Object.keys(allSessions);
-    let validCount = 0;
-    let invalidCount = 0;
-    for (const userId of userIds) {
-      const session = allSessions[userId];
-      if (!session || !session.token) {
-        await this.notifyStudentPortalTokenExpiry(userId);
-        await this.deleteStudentPortalSession(userId);
-        invalidCount++;
-        continue;
-      }
-      try {
-        await axios.get(`${config.STUDENT_PORTAL_API_URL}/check-auth`, {
-          headers: {
-            Authorization: `Bearer ${session.token}`,
-          },
-          validateStatus: (status) => status < 500,
-        });
-        validCount++;
-      } catch (error) {
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          await this.notifyStudentPortalTokenExpiry(userId);
-          await this.deleteStudentPortalSession(userId);
-          invalidCount++;
-        } else {
-          logger.error(`Error validating student portal session: ${error.message}`);
-        }
-      }
-    }
-    return { valid: validCount, invalid: invalidCount };
-  },
-
-  async notifyStudentPortalTokenExpiry(userId) {
-    try {
-      const botInstance = global.botInstance;
-      if (botInstance) {
-        await botInstance.telegram.sendMessage(
-          userId,
-          "⚠️ Your Student Portal session has expired. Please login again to continue using Student Portal services."
-        );
-      }
-    } catch (error) {
-      logger.error(`Failed to notify user ${userId} about token expiry: ${error.message}`);
-    }
-  },
-
-  studentPortalDebug() {
-    return {
-      count: studentPortalSessions.size,
-      users: Array.from(studentPortalSessions.keys()),
     };
   }
 };
