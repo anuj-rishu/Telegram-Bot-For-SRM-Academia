@@ -76,7 +76,7 @@ bot.start((ctx) => {
 
 //  Notification services
 new MarksNotificationService(bot);
-// new AttendanceNotificationService(bot);
+new AttendanceNotificationService(bot);
 // new SeatFinderService(bot);
 taskController.initTaskService(bot);
 
@@ -92,27 +92,6 @@ bot.messageService = messageService;
 bot.command("attendance", requireLogin, attendanceController.handleAttendance);
 bot.command("courses", requireLogin, coursesController.handleCourses);
 bot.command("timetable", requireLogin, timetableController.handleTimetable);
-bot.command(
-  "todaysclass",
-  requireLogin,
-  timetableController.handleTodayTimetable
-);
-bot.command(
-  "tomorrowclass",
-  requireLogin,
-  timetableController.handleTomorrowTimetable
-);
-bot.command(
-  "dayafterclass",
-  requireLogin,
-  timetableController.handleDayAfterTomorrowTimetable
-);
-bot.command("calendar", handleCalendar);
-bot.on("callback_query", (ctx) => {
-  if (ctx.callbackQuery.data.startsWith("cal_")) {
-    return handleCalendarCallback(ctx);
-  }
-});
 bot.command("marks", requireLogin, marksController.handleMarks);
 bot.command("user", requireLogin, userController.handleUserInfo);
 

@@ -78,65 +78,6 @@ async function fetchAttendanceData(session) {
   }
 }
 
-async function handleTimetableGeneric(
-  ctx,
-  endpoint,
-  title,
-  noClassMsg,
-  includeAttendance = false
-) {
-  const session = sessionManager.getSession(ctx.from.id);
-  if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
-
-  const loaderPromise = createLoader(ctx, `Fetching ${title.toLowerCase()}...`);
-  const apiPromise = apiService.makeAuthenticatedRequest(endpoint, session);
-  const attendancePromise = includeAttendance
-    ? fetchAttendanceData(session)
-    : Promise.resolve([]);
-
-  const [loader, apiResponse, attendance] = await Promise.all([
-    loaderPromise,
-    apiPromise,
-    attendancePromise,
-  ]);
-
-  try {
-    loader.stop();
-    const data = apiResponse.data;
-    const formatFn = includeAttendance
-      ? (slot) => formatClassSlotWithAttendance(slot, attendance)
-      : formatClassSlot;
-
-    let msg = `*${title}*\n${
-      data.dayOrder && data.dayOrder !== "-"
-        ? `📅 Day Order: *${data.dayOrder}*\n`
-        : ""
-    }\n`;
-    msg += data.classes?.length
-      ? data.classes.map(formatFn).join("\n")
-      : `✨ ${noClassMsg}`;
-
-    await ctx.telegram.editMessageText(
-      ctx.chat.id,
-      loader.messageId,
-      undefined,
-      msg,
-      { parse_mode: "Markdown" }
-    );
-  } catch (e) {
-    loader.stop();
-    if (process.env.NODE_ENV === "production") {
-      logger.error("Timetable fetch error:", e.message || e);
-    }
-    await ctx.telegram.editMessageText(
-      ctx.chat.id,
-      loader.messageId,
-      undefined,
-      `❌ Error: ${e.response?.data?.error || e.message || "Unknown error"}`
-    );
-  }
-}
-
 async function handleTimetable(ctx, includeAttendance = false) {
   const session = sessionManager.getSession(ctx.from.id);
   if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
@@ -274,30 +215,6 @@ async function handleAttendance(ctx) {
 
 module.exports = {
   handleTimetable,
-  handleTodayTimetable: (ctx) =>
-    handleTimetableGeneric(
-      ctx,
-      "/today-classes",
-      "Today's Classes",
-      "No classes scheduled for today!",
-      true
-    ),
-  handleTomorrowTimetable: (ctx) =>
-    handleTimetableGeneric(
-      ctx,
-      "/tomorrow-classes",
-      "Tomorrow's Classes",
-      "No classes scheduled for tomorrow!",
-      true
-    ),
-  handleDayAfterTomorrowTimetable: (ctx) =>
-    handleTimetableGeneric(
-      ctx,
-      "/day-after-tomorrow-classes",
-      "Day After Tomorrow's Classes",
-      "No classes scheduled for day after tomorrow!",
-      true
-    ),
   handleTimetableWithAttendance: (ctx) => handleTimetable(ctx, true),
   handleAttendance,
 };
