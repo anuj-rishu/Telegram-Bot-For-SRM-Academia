@@ -213,8 +213,112 @@ async function handleAttendance(ctx) {
   }
 }
 
+
+async function handleTodaysClass(ctx) {
+  const session = sessionManager.getSession(ctx.from.id);
+  if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
+
+  const loader = await createLoader(ctx, "Fetching today's classes...");
+  try {
+    const response = await apiService.makeAuthenticatedRequest("/today-classes", session);
+    loader.stop();
+    const data = response.data;
+    if (data.error || !data.classes) {
+      return ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loader.messageId,
+        undefined,
+        "❌ No classes scheduled for today.",
+        { parse_mode: "Markdown" }
+      );
+    }
+    let msg = `📅 *Today's Classes (${data.day}, ${data.date})*\nDay Order: ${data.dayOrder}\n${data.event ? `🎯 ${data.event}\n` : ""}`;
+    if (data.classes.length) {
+      for (const c of data.classes) {
+        msg += `\n⏰ *${c.startTime} - ${c.endTime}*\n📚 ${c.name} (${c.courseType})\n🏛 Room: ${c.roomNo || "N/A"}\n`;
+      }
+    } else {
+      msg += "\n😴 No classes scheduled.";
+    }
+    await ctx.telegram.editMessageText(ctx.chat.id, loader.messageId, undefined, msg, { parse_mode: "Markdown" });
+  } catch (e) {
+    loader.stop();
+    ctx.telegram.editMessageText(ctx.chat.id, loader.messageId, undefined, `❌ Error: ${e.message || "Unknown error"}`);
+  }
+}
+
+async function handleTomorrowClass(ctx) {
+  const session = sessionManager.getSession(ctx.from.id);
+  if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
+
+  const loader = await createLoader(ctx, "Fetching tomorrow's classes...");
+  try {
+    const response = await apiService.makeAuthenticatedRequest("/tomorrow-classes", session);
+    loader.stop();
+    const data = response.data;
+    if (data.error || !data.classes) {
+      return ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loader.messageId,
+        undefined,
+        "❌ No classes scheduled for tomorrow.",
+        { parse_mode: "Markdown" }
+      );
+    }
+    let msg = `📅 *Tomorrow's Classes (${data.day}, ${data.date})*\nDay Order: ${data.dayOrder}\n${data.event ? `🎯 ${data.event}\n` : ""}`;
+    if (data.classes.length) {
+      for (const c of data.classes) {
+        msg += `\n⏰ *${c.startTime} - ${c.endTime}*\n📚 ${c.name} (${c.courseType})\n🏛 Room: ${c.roomNo || "N/A"}\n`;
+      }
+    } else {
+      msg += "\n😴 No classes scheduled.";
+    }
+    await ctx.telegram.editMessageText(ctx.chat.id, loader.messageId, undefined, msg, { parse_mode: "Markdown" });
+  } catch (e) {
+    loader.stop();
+  ctx.telegram.editMessageText(ctx.chat.id, loader.messageId, undefined, `❌ Error: ${e.message || "Unknown error"}`);
+  }
+}
+
+async function handleDayAfterClass(ctx) {
+  const session = sessionManager.getSession(ctx.from.id);
+  if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
+
+  const loader = await createLoader(ctx, "Fetching day after tomorrow's classes...");
+  try {
+    const response = await apiService.makeAuthenticatedRequest("/day-after-tomorrow-classes", session);
+    loader.stop();
+    const data = response.data;
+    if (data.error || !data.classes) {
+      return ctx.telegram.editMessageText(
+        ctx.chat.id,
+        loader.messageId,
+        undefined,
+        "❌ No classes scheduled for day after tomorrow.",
+        { parse_mode: "Markdown" }
+      );
+    }
+    let msg = `📅 *Day After Tomorrow's Classes (${data.day}, ${data.date})*\nDay Order: ${data.dayOrder}\n${data.event ? `🎯 ${data.event}\n` : ""}`;
+    if (data.classes.length) {
+      for (const c of data.classes) {
+        msg += `\n⏰ *${c.startTime} - ${c.endTime}*\n📚 ${c.name} (${c.courseType})\n🏛 Room: ${c.roomNo || "N/A"}\n`;
+      }
+    } else {
+      msg += "\n😴 No classes scheduled.";
+    }
+    await ctx.telegram.editMessageText(ctx.chat.id, loader.messageId, undefined, msg, { parse_mode: "Markdown" });
+  } catch (e) {
+    loader.stop();
+    ctx.telegram.editMessageText(ctx.chat.id, loader.messageId, undefined, `❌ Error: ${e.message || "Unknown error"}`);
+  }
+}
+
+
 module.exports = {
   handleTimetable,
   handleTimetableWithAttendance: (ctx) => handleTimetable(ctx, true),
   handleAttendance,
+  handleTodaysClass,
+  handleTomorrowClass,
+  handleDayAfterClass,
 };

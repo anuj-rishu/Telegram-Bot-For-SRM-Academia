@@ -77,8 +77,9 @@ bot.start((ctx) => {
 //  Notification services
 new MarksNotificationService(bot);
 new AttendanceNotificationService(bot);
-// new SeatFinderService(bot);
 taskController.initTaskService(bot);
+new NotificationService(bot);
+// new SeatFinderService(bot);
 
 //Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));
@@ -94,6 +95,9 @@ bot.command("courses", requireLogin, coursesController.handleCourses);
 bot.command("timetable", requireLogin, timetableController.handleTimetable);
 bot.command("marks", requireLogin, marksController.handleMarks);
 bot.command("user", requireLogin, userController.handleUserInfo);
+bot.command("todaysclass", timetableController.handleTodaysClass);
+bot.command("tomorrowclass", timetableController.handleTomorrowClass);
+bot.command("dayafterclass", timetableController.handleDayAfterClass);
 
 //lost and found command
 bot.command(

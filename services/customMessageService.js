@@ -55,7 +55,7 @@ class CustomMessageService {
 
   async broadcastMessage(message, options = {}) {
     try {
-      const users = await User.find({});
+      const users = await User.find({ telegramId: { $exists: true } });
       const batchSize = 25;
       for (let i = 0; i < users.length; i += batchSize) {
         const batch = users.slice(i, i + batchSize);
