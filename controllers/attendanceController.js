@@ -12,10 +12,7 @@ async function handleAttendance(ctx) {
   }
 
   const loaderPromise = createLoader(ctx, "Fetching your attendance data...");
-  const apiPromise = apiService.makeAuthenticatedRequest(
-    "/attendance",
-    session
-  );
+  const apiPromise = apiService.makeAuthenticatedRequest("/attendance", session);
 
   const [loader, response] = await Promise.all([loaderPromise, apiPromise]);
 
@@ -33,8 +30,7 @@ async function handleAttendance(ctx) {
     }
 
     const attendanceArr = response.data.attendance;
-    let totalClasses = 0,
-      totalAbsent = 0;
+    let totalClasses = 0, totalAbsent = 0;
 
     attendanceArr.forEach((course) => {
       totalClasses += +course.hoursConducted || 0;
@@ -78,15 +74,18 @@ async function handleAttendance(ctx) {
       message += `╰┈➤ Present: ${hoursPresent}/${hoursConducted}\n`;
       message += `╰┈➤ Absent: ${hoursAbsent}\n`;
 
-      // Use API-provided fields for required/skippable classes
       if (attendancePercentage >= 75) {
-        message += `🎯 *Can skip:* ${
-          course.classesCanSkipFor75 || 0
-        } more classes\n`;
+        const skippable =
+          hoursPresent > 0 && hoursConducted > 0
+            ? Math.floor(hoursPresent / 0.75 - hoursConducted)
+            : 0;
+        message += `🎯 *Can skip:* ${Math.max(0, skippable)} more classes\n`;
       } else {
-        message += `📌 *Need to attend:* ${
-          course.classesRequiredFor75 || 1
-        } more classes\n`;
+        const classesNeeded =
+          hoursConducted > 0
+            ? Math.ceil((0.75 * hoursConducted - hoursPresent) / 0.25)
+            : 1;
+        message += `📌 *Need to attend:* ${Math.max(1, classesNeeded)} more classes\n`;
       }
       message += `\n`;
     }
