@@ -37,6 +37,8 @@ const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 //services
 const CustomMessageService = require("./services/customMessageService");
 
+const timetablePdfController = require("./controllers/timetablePdfController");
+
 global.botInstance = bot;
 
 const originalSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
@@ -80,6 +82,12 @@ new AttendanceNotificationService(bot);
 taskController.initTaskService(bot);
 new NotificationService(bot);
 // new SeatFinderService(bot);
+
+bot.command(
+  "timetablepdf",
+  requireLogin,
+  timetablePdfController.handleTimetablePdf
+);
 
 //Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));
@@ -152,7 +160,8 @@ bot.help((ctx) => {
       "/login - Login to your SRM account\n" +
       "/attendance - Check your attendance\n" +
       "/marks - Check your marks\n" +
-      "/timetable - Get your weekly timetable\n" +
+      "/timetable - Get your timetable\n" +
+      "/timetablepdf - Get timetable in PDF\n" +
       "/todaysclass - Get Todays Class\n" +
       "/tomorrowclass - Get Tomorrows Class\n" +
       "/dayafterclass  - Get Day After Tomorrows Class\n" +

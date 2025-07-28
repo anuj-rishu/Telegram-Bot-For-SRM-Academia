@@ -303,9 +303,19 @@ class AttendanceNotificationService {
       const newPercentage = parseFloat(update.new.attendancePercentage);
       const emoji = this.getAttendanceEmoji(newPercentage);
 
+      // New fields from server response
+      const courseCode = update.new.courseCode || "";
+      const facultyName = update.new.facultyName || "";
+      const slot = update.new.slot || "";
+      const roomNo = update.new.roomNo || "";
+
       message += `📚 *${update.courseName || update.new.courseTitle}* (${
         update.new.category
       })\n`;
+      if (courseCode) message += `Code: ${courseCode}\n`;
+      if (facultyName) message += `Faculty: ${facultyName}\n`;
+      if (slot) message += `Slot: ${slot}\n`;
+      if (roomNo) message += `Room: ${roomNo}\n`;
       message += `${emoji} Current: ${hoursPresent}/${hoursConducted} (${newPercentage}%)\n`;
 
       if (update.old) {
@@ -326,17 +336,14 @@ class AttendanceNotificationService {
         }
       }
 
-      if (newPercentage >= 75) {
-        const skippable = Math.floor(hoursPresent / 0.75 - hoursConducted);
-        message += `🎯 *Can skip:* ${Math.max(0, skippable)} more classes\n`;
-      } else {
-        const classesNeeded = Math.ceil(
-          (0.75 * hoursConducted - hoursPresent) / 0.25
-        );
-        message += `📌 *Need to attend:* ${Math.max(
-          1,
-          classesNeeded
-        )} more classes\n`;
+      // Use new fields from server response
+      const classesRequiredFor75 = update.new.classesRequiredFor75 ?? null;
+      const classesCanSkipFor75 = update.new.classesCanSkipFor75 ?? null;
+
+      if (classesCanSkipFor75 && classesCanSkipFor75 > 0) {
+        message += `🎯 *Can skip:* ${classesCanSkipFor75} more classes\n`;
+      } else if (classesRequiredFor75 && classesRequiredFor75 > 0) {
+        message += `📌 *Need to attend:* ${classesRequiredFor75} more classes\n`;
       }
 
       message += "\n";
