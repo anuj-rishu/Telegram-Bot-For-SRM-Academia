@@ -78,6 +78,7 @@ async function handleAttendance(ctx) {
       message += `╰┈➤ Present: ${hoursPresent}/${hoursConducted}\n`;
       message += `╰┈➤ Absent: ${hoursAbsent}\n`;
 
+      // Use API-provided fields for required/skippable classes
       if (attendancePercentage >= 75) {
         message += `🎯 *Can skip:* ${
           course.classesCanSkipFor75 || 0
