@@ -1,6 +1,7 @@
 const User = require("../model/user");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const AttendanceHistory = require("../model/attendanceHistory");
 
 class AttendanceNotificationService {
   constructor(bot) {
@@ -129,12 +130,40 @@ class AttendanceNotificationService {
           }
         }
 
+        //  attendance history 
+        for (const update of updatedCourses) {
+          await this.saveAttendanceHistory(user.telegramId, update.new, new Date());
+        }
+
         await User.findByIdAndUpdate(user._id, {
           attendance: newAttendanceData,
           lastAttendanceUpdate: new Date(),
         });
       }
     } catch (error) {}
+  }
+
+  // attendance to AttendanceHistory
+  async saveAttendanceHistory(telegramId, course, date = new Date()) {
+    try {
+      const hoursConducted = parseInt(course.hoursConducted);
+      const hoursAbsent = parseInt(course.hoursAbsent);
+      const hoursPresent = hoursConducted - hoursAbsent;
+      const wasPresent = hoursConducted > 0 && hoursAbsent < hoursConducted;
+      await AttendanceHistory.create({
+        telegramId,
+        courseTitle: course.courseTitle,
+        category: course.category,
+        date,
+        hoursConducted,
+        hoursAbsent,
+        hoursPresent,
+        wasPresent,
+        attendancePercentage: parseFloat(course.attendancePercentage),
+      });
+    } catch (error) {
+      
+    }
   }
 
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {

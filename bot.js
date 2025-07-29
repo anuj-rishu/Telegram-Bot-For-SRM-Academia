@@ -22,6 +22,8 @@ const {
 const lostItemController = require("./controllers/lostItemController");
 const taskController = require("./controllers/taskController");
 const documentController = require("./controllers/documentController");
+const timetablePdfController = require("./controllers/timetablePdfController");
+const attendancePdfController = require("./controllers/attendancePdfController");
 
 //notification service
 const NotificationService = require("./notification/timetable");
@@ -37,7 +39,7 @@ const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 //services
 const CustomMessageService = require("./services/customMessageService");
 
-const timetablePdfController = require("./controllers/timetablePdfController");
+
 
 global.botInstance = bot;
 
@@ -83,11 +85,15 @@ taskController.initTaskService(bot);
 new NotificationService(bot);
 // new SeatFinderService(bot);
 
+
+//pdf services
 bot.command(
   "timetablepdf",
   requireLogin,
   timetablePdfController.handleTimetablePdf
 );
+bot.command("attendancepdf", requireLogin, attendancePdfController.handleAttendancePdf);
+
 
 //Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));
@@ -159,6 +165,7 @@ bot.help((ctx) => {
     "SRM ACADEMIA BOT Commands:\n\n" +
       "/login - Login to your SRM account\n" +
       "/attendance - Check your attendance\n" +
+      "/attendancepdf - Get your attendance report in detail\n" +
       "/marks - Check your marks\n" +
       "/timetable - Get your timetable\n" +
       "/timetablepdf - Get timetable in PDF\n" +
