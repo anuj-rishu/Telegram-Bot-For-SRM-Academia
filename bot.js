@@ -29,6 +29,7 @@ const attendancePdfController = require("./controllers/attendancePdfController")
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
+const scheduleAttendancePdf = require("./notification/attendancePdfScheduler");
 
 //scenes
 const loginScene = require("./scenes/loginScene");
@@ -83,6 +84,7 @@ new MarksNotificationService(bot);
 new AttendanceNotificationService(bot);
 taskController.initTaskService(bot);
 new NotificationService(bot);
+scheduleAttendancePdf(bot);
 // new SeatFinderService(bot);
 
 
