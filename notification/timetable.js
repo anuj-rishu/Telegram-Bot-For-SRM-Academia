@@ -1,20 +1,7 @@
 const schedule = require("node-schedule");
 const sessionManager = require("../utils/sessionManager");
 const apiService = require("../services/apiService");
-const winston = require("winston");
-
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp({
-      format: "YYYY-MM-DD HH:mm:ss",
-    }),
-    winston.format.printf(
-      (info) => `${info.timestamp} ${info.level}: ${info.message}`
-    )
-  ),
-  transports: [new winston.transports.Console()],
-});
+const logger = require("../utils/logger");
 
 class NotificationService {
   constructor(bot) {
@@ -25,8 +12,25 @@ class NotificationService {
     this.scheduleClassReminders();
   }
 
+  isWeekday() {
+    const day = new Date().getDay();
+    return day !== 0 && day !== 6;
+  }
+
+  isWithinOperatingHours() {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const currentTime = hour * 60 + minute;
+
+    const startTime = 7 * 60 + 50;
+    const endTime = 17 * 60;
+
+    return currentTime >= startTime && currentTime <= endTime;
+  }
+
   scheduleNotifications() {
-    schedule.scheduleJob("00 07 * * *", async () => {
+    schedule.scheduleJob("01 07 * * 1-5", async () => {
       try {
         const sessions = sessionManager.getAllSessions();
         const userIds = Object.keys(sessions);
@@ -73,6 +77,10 @@ class NotificationService {
 
   scheduleClassReminders() {
     schedule.scheduleJob("* * * * *", async () => {
+      if (!this.isWeekday() || !this.isWithinOperatingHours()) {
+        return;
+      }
+
       try {
         const sessions = sessionManager.getAllSessions();
         const userIds = Object.keys(sessions);
@@ -238,9 +246,7 @@ class NotificationService {
       });
 
       this.sentNotifications.set(notificationKey, new Date());
-      logger.info(
-        `Sent urgent reminder to user ${userId} for ${classInfo.name}`
-      );
+      logger.userActivity(userId, `Sent urgent reminder for ${classInfo.name}`);
     } catch (error) {
       logger.error(
         `Error sending urgent reminder to user ${userId}: ${error.message}`
@@ -257,9 +263,7 @@ class NotificationService {
               disable_web_page_preview: true,
             });
             this.sentNotifications.set(notificationKey, new Date());
-            logger.info(
-              `Successfully retried urgent reminder to user ${userId}`
-            );
+            logger.userActivity(userId, `Successfully retried urgent reminder`);
           } catch (retryError) {
             logger.error(
               `Retry failed for user ${userId}: ${retryError.message}`
@@ -267,43 +271,6 @@ class NotificationService {
           }
         }, 3000);
       }
-    }
-  }
-
-  async sendHourlyClassReminder(userId, classInfo, hours) {
-    const minutesUntil = classInfo.minutesUntil;
-    const hoursUntil = Math.floor(minutesUntil / 60);
-    const remainingMinutes = minutesUntil % 60;
-
-    let timeDisplay = "";
-    if (hoursUntil > 0) {
-      timeDisplay += `${hoursUntil} hour${hoursUntil > 1 ? "s" : ""}`;
-    }
-    if (remainingMinutes > 0) {
-      timeDisplay += `${
-        hoursUntil > 0 ? " and " : ""
-      }${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}`;
-    }
-
-    const message = [
-      `🕒 *Upcoming Class in ${timeDisplay}*`,
-      `\n📚 *${classInfo.name}* (${classInfo.courseType})`,
-      `⏰ ${classInfo.startTime} - ${classInfo.endTime}`,
-      `🏛 Room: ${classInfo.roomNo || "N/A"}`,
-    ].join("\n");
-
-    try {
-      await this.bot.telegram.sendMessage(userId, message, {
-        parse_mode: "Markdown",
-        disable_web_page_preview: true,
-      });
-      logger.info(
-        `Sent hourly reminder to user ${userId} for ${classInfo.name}`
-      );
-    } catch (error) {
-      logger.error(
-        `Error sending hourly reminder to user ${userId}: ${error.message}`
-      );
     }
   }
 
@@ -324,6 +291,13 @@ class NotificationService {
     return new Date().toLocaleDateString("en-US", options);
   }
 
+  getAttendanceEmoji(percentage) {
+    if (percentage >= 90) return "✅";
+    if (percentage >= 75) return "✳️";
+    if (percentage >= 60) return "⚠️";
+    return "❌";
+  }
+
   async sendDailySchedule(userId) {
     if (!userId) throw new Error("Invalid user ID");
 
@@ -333,20 +307,19 @@ class NotificationService {
     }
 
     try {
-      const response = await apiService.makeAuthenticatedRequest(
-        "/today-classes",
-        session
-      );
+      const [classesResponse, attendanceResponse] = await Promise.all([
+        apiService.makeAuthenticatedRequest("/today-classes", session),
+        apiService.makeAuthenticatedRequest("/attendance", session),
+      ]);
 
-      if (!response?.data || response.data.error) {
+      if (!classesResponse?.data || classesResponse.data.error) {
         return;
       }
 
-      const todayData = response.data;
+      const todayData = classesResponse.data;
       const greeting = this.getDayGreeting();
       const date = this.formatDate();
 
-      // Combine messages
       let completeMessage = [
         `🌟 *${greeting}!*`,
         `\n📅 *${date}*`,
@@ -363,20 +336,106 @@ class NotificationService {
           );
         });
 
-        sortedClasses.forEach((classInfo) => {
+        for (const classInfo of sortedClasses) {
           completeMessage += `\n⏰ *${classInfo.startTime} - ${classInfo.endTime}*\n`;
           completeMessage += `📚 ${classInfo.name} (${classInfo.courseType})\n`;
           completeMessage += `🏛 Room: ${classInfo.roomNo || "N/A"}\n`;
-        });
+
+          if (attendanceResponse?.data?.attendance) {
+            const courseAttendance = attendanceResponse.data.attendance.find(
+              (course) =>
+                (course.courseCode === classInfo.code ||
+                  course.courseTitle === classInfo.name) &&
+                (course.courseType === classInfo.courseType ||
+                  course.category === classInfo.courseType)
+            );
+
+            if (courseAttendance) {
+              const hoursConducted = parseInt(courseAttendance.hoursConducted);
+              const hoursAbsent = parseInt(courseAttendance.hoursAbsent);
+              const hoursPresent = hoursConducted - hoursAbsent;
+              const attendancePercentage = parseFloat(
+                courseAttendance.attendancePercentage
+              );
+              const emoji = this.getAttendanceEmoji(attendancePercentage);
+
+              completeMessage += `${emoji} Attendance: ${attendancePercentage}% (${hoursPresent}/${hoursConducted})\n`;
+
+              if (attendancePercentage >= 75) {
+                const skippable = Math.floor(
+                  hoursPresent / 0.75 - hoursConducted
+                );
+                completeMessage += `🎯 Can skip: ${Math.max(
+                  0,
+                  skippable
+                )} more classes\n`;
+              } else {
+                const classesNeeded = Math.ceil(
+                  (0.75 * hoursConducted - hoursPresent) / 0.25
+                );
+                completeMessage += `📌 Need to attend: ${Math.max(
+                  1,
+                  classesNeeded
+                )} more classes\n`;
+              }
+            }
+          }
+        }
       } else {
         completeMessage += "\n😴 No classes scheduled for today!";
+
+        if (attendanceResponse?.data?.attendance) {
+          completeMessage += "\n\n📊 *Overall Attendance:*\n";
+
+          const allCourses = attendanceResponse.data.attendance.sort(
+            (a, b) =>
+              parseFloat(a.attendancePercentage) -
+              parseFloat(b.attendancePercentage)
+          );
+
+          if (allCourses.length > 0) {
+            completeMessage += "\n📋 *Your course attendance:*\n";
+
+            for (const course of allCourses) {
+              const hoursConducted = parseInt(course.hoursConducted);
+              const hoursAbsent = parseInt(course.hoursAbsent);
+              const hoursPresent = hoursConducted - hoursAbsent;
+              const attendancePercentage = parseFloat(
+                course.attendancePercentage
+              );
+              const emoji = this.getAttendanceEmoji(attendancePercentage);
+
+              completeMessage += `${emoji} *${course.courseTitle}* (${course.category}): ${attendancePercentage}%\n`;
+
+              if (attendancePercentage >= 75) {
+                const skippable = Math.floor(
+                  hoursPresent / 0.75 - hoursConducted
+                );
+                completeMessage += `   🎯 Can skip: ${Math.max(
+                  0,
+                  skippable
+                )} more classes\n`;
+              } else {
+                const classesNeeded = Math.ceil(
+                  (0.75 * hoursConducted - hoursPresent) / 0.25
+                );
+                completeMessage += `   📌 Need to attend: ${Math.max(
+                  1,
+                  classesNeeded
+                )} more classes\n`;
+              }
+            }
+          } else {
+            completeMessage += "✅ No course attendance data available\n";
+          }
+        }
       }
 
       await this.bot.telegram.sendMessage(userId, completeMessage, {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       });
-      logger.info(`Sent daily schedule to user ${userId}`);
+      logger.userActivity(userId, `Sent daily schedule`);
     } catch (error) {
       logger.error(
         `Error sending daily schedule to user ${userId}: ${error.message}`
@@ -395,7 +454,7 @@ class NotificationService {
                 parse_mode: "Markdown",
               }
             );
-            logger.info(`Sent simplified daily schedule to user ${userId}`);
+            logger.userActivity(userId, `Sent simplified daily schedule`);
           } catch (retryError) {
             logger.error(
               `Failed to send simplified daily schedule to user ${userId}: ${retryError.message}`

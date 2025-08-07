@@ -2,20 +2,18 @@ const User = require("../model/user");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const AttendanceHistory = require("../model/attendanceHistory");
+const crypto = require('crypto');
 
 class AttendanceNotificationService {
   constructor(bot) {
     this.bot = bot;
     this.notifiedUpdates = new Map();
+    this.processingUsers = new Set();
 
     this.loadNotifiedUpdatesFromDB();
     setTimeout(() => this.migrateNotificationData(), 5000);
 
-    this.batchSize = 10;
-    this.batchDelay = 1200;
-    this.isProcessing = false;
-
-    setTimeout(() => this.startBatchAttendanceCheck(), 10000);
+    setInterval(() => this.checkAttendanceUpdates(), 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
@@ -58,68 +56,70 @@ class AttendanceNotificationService {
     } catch (error) {}
   }
 
-  async startBatchAttendanceCheck() {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
-
+  async checkAttendanceUpdates() {
     try {
       const users = await User.find({
         token: { $exists: true },
-        attendance: { $exists: true },
-      });
+      }).lean();
 
-      let index = 0;
-      const total = users.length;
-      const processBatch = async () => {
-        const batch = users.slice(index, index + this.batchSize);
+      const BATCH_SIZE = 15;
+      
+      for (let i = 0; i < users.length; i += BATCH_SIZE) {
+        const batch = users.slice(i, i + BATCH_SIZE);
+        
         await Promise.all(
           batch.map(async (user) => {
-            await this.processUserAttendance(user);
+            if (this.processingUsers.has(user.telegramId)) return;
+            this.processingUsers.add(user.telegramId);
+            
+            try {
+              await this.checkUserAttendance(user);
+            } finally {
+              this.processingUsers.delete(user.telegramId);
+            }
           })
         );
-        index += this.batchSize;
-        if (index < total) {
-          setTimeout(processBatch, this.batchDelay);
-        } else {
-          setTimeout(() => {
-            this.isProcessing = false;
-            this.startBatchAttendanceCheck();
-          }, Math.max(0, 60000 - this.batchDelay * Math.ceil(total / this.batchSize)));
+        
+        if (i + BATCH_SIZE < users.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
-      };
-      processBatch();
-    } catch (error) {
-      this.isProcessing = false;
-    }
+      }
+    } catch (error) {}
   }
-
-  async processUserAttendance(user) {
+  
+  async checkUserAttendance(user) {
     try {
       const session = sessionManager.getSession(user.telegramId);
       if (!session) return;
-
+      
       const response = await apiService.makeAuthenticatedRequest(
         "/attendance",
         session
       );
+      
       const newAttendanceData = response.data;
-
       if (!newAttendanceData?.attendance) return;
-
+      
+      const newHash = this.generateAttendanceHash(newAttendanceData.attendance);
+      
+      if (user.attendanceHash === newHash) {
+        return;
+      }
+      
       const updatedCourses = this.compareAttendance(
         user.attendance,
         newAttendanceData
       );
-
+      
       if (updatedCourses.length > 0) {
         const hasRealChanges = this.hasSignificantChanges(updatedCourses);
-
+        
         if (hasRealChanges) {
           const newUpdates = this.filterAlreadyNotifiedUpdates(
             user.telegramId,
             updatedCourses
           );
-
+          
           if (newUpdates.length > 0) {
             await this.sendAttendanceUpdateNotification(
               user.telegramId,
@@ -129,21 +129,39 @@ class AttendanceNotificationService {
             await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
           }
         }
-
-        //  attendance history 
+        
         for (const update of updatedCourses) {
           await this.saveAttendanceHistory(user.telegramId, update.new, new Date());
         }
-
+        
         await User.findByIdAndUpdate(user._id, {
           attendance: newAttendanceData,
+          attendanceHash: newHash,
           lastAttendanceUpdate: new Date(),
         });
       }
     } catch (error) {}
   }
+  
+  generateAttendanceHash(attendance) {
+    try {
+      const hashData = attendance.map(course => ({
+        courseTitle: course.courseTitle,
+        category: course.category,
+        hoursConducted: course.hoursConducted,
+        hoursAbsent: course.hoursAbsent,
+        attendancePercentage: course.attendancePercentage
+      }));
+      
+      return crypto
+        .createHash('md5')
+        .update(JSON.stringify(hashData))
+        .digest('hex');
+    } catch (error) {
+      return null;
+    }
+  }
 
-  // attendance to AttendanceHistory
   async saveAttendanceHistory(telegramId, course, date = new Date()) {
     try {
       const hoursConducted = parseInt(course.hoursConducted);
@@ -161,9 +179,7 @@ class AttendanceNotificationService {
         wasPresent,
         attendancePercentage: parseFloat(course.attendancePercentage),
       });
-    } catch (error) {
-      
-    }
+    } catch (error) {}
   }
 
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
@@ -332,7 +348,6 @@ class AttendanceNotificationService {
       const newPercentage = parseFloat(update.new.attendancePercentage);
       const emoji = this.getAttendanceEmoji(newPercentage);
 
-      // New fields from server response
       const courseCode = update.new.courseCode || "";
       const facultyName = update.new.facultyName || "";
       const slot = update.new.slot || "";
@@ -365,7 +380,6 @@ class AttendanceNotificationService {
         }
       }
 
-      // Use new fields from server response
       const classesRequiredFor75 = update.new.classesRequiredFor75 ?? null;
       const classesCanSkipFor75 = update.new.classesCanSkipFor75 ?? null;
 

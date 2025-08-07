@@ -32,7 +32,7 @@ async function handleAttendancePdf(ctx) {
   let history = [];
   try {
     history = await AttendanceHistory.find({ telegramId: userId }).sort({
-      date: 1,
+      date: -1,
     });
   } catch (e) {}
 
@@ -94,31 +94,79 @@ async function handleAttendancePdf(ctx) {
       .text("No attendance data available.", summaryIndent);
   } else {
     attendanceArr.forEach((course) => {
+      const hoursPresent = course.hoursConducted - course.hoursAbsent;
+      const attendancePercentage = parseFloat(course.attendancePercentage);
+      
+      let statusEmoji = "✅";
+      if (attendancePercentage < 75 && attendancePercentage >= 65) {
+        statusEmoji = "⚠️";
+      } else if (attendancePercentage < 65) {
+        statusEmoji = "❌";
+      }
+      
       doc
         .fontSize(12)
         .fillColor("#212F3D")
-        .font("Helvetica")
-        .text(
-          `${course.courseTitle} (${course.category || "N/A"}): `,
-          summaryIndent,
-          doc.y,
-          { continued: true }
-        )
-        .fillColor("#229954")
         .font("Helvetica-Bold")
         .text(
-          `${course.hoursConducted - course.hoursAbsent}/${
-            course.hoursConducted
-          } Present `,
-          { continued: true }
-        )
-        .fillColor("#2874A6")
-        .text(`(${course.attendancePercentage}%)`);
+          `${statusEmoji} ${course.courseTitle} (${course.category || "N/A"})`,
+          summaryIndent,
+          doc.y
+        );
+      
+      if (course.courseCode || course.facultyName || course.slot || course.roomNo) {
+        doc.fontSize(10).fillColor("#555").font("Helvetica");
+        
+        if (course.courseCode) {
+          doc.text(`   Code: ${course.courseCode}`, summaryIndent + 10, doc.y);
+        }
+        if (course.facultyName) {
+          doc.text(`   Faculty: ${course.facultyName}`, summaryIndent + 10, doc.y);
+        }
+        if (course.slot) {
+          doc.text(`   Slot: ${course.slot}`, summaryIndent + 10, doc.y);
+        }
+        if (course.roomNo) {
+          doc.text(`   Room: ${course.roomNo}`, summaryIndent + 10, doc.y);
+        }
+      }
+      
+      doc
+        .fontSize(11)
+        .fillColor("#229954")
+        .font("Helvetica")
+        .text(
+          `   Present: ${hoursPresent}/${course.hoursConducted} hours (${attendancePercentage}%)`,
+          summaryIndent + 10,
+          doc.y
+        );
+      
+      if (attendancePercentage >= 75) {
+        const classesCanSkip = Math.floor((hoursPresent / 0.75) - course.hoursConducted);
+        if (classesCanSkip > 0) {
+          doc
+            .fontSize(11)
+            .fillColor("#2874A6")
+            .text(`   You can skip ${classesCanSkip} more classes and still maintain 75%`, summaryIndent + 10, doc.y);
+        } else {
+          doc
+            .fontSize(11)
+            .fillColor("#2874A6")
+            .text(`   Attendance is good! Keep it up.`, summaryIndent + 10, doc.y);
+        }
+      } else {
+        const classesNeeded = Math.ceil((0.75 * course.hoursConducted - hoursPresent) / 0.25);
+        doc
+          .fontSize(11)
+          .fillColor("#B03A2E")
+          .text(`   Need to attend ${classesNeeded} more consecutive classes to reach 75%`, summaryIndent + 10, doc.y);
+      }
+      
+      doc.moveDown(0.5);
     });
   }
 
   doc.moveDown(1);
-
   doc
     .moveTo(40, doc.y)
     .lineTo(doc.page.width - 40, doc.y)
@@ -141,30 +189,40 @@ async function handleAttendancePdf(ctx) {
       .fillColor("#B03A2E")
       .text("No attendance history available.", summaryIndent);
   } else {
-    const grouped = {};
+  
+    const courseHistoryMap = {};
+    
     history.forEach((record) => {
-      const key = `${record.courseTitle} (${record.category || "N/A"})`;
-      if (!grouped[key]) {
-        grouped[key] = { present: [], absent: [] };
+      const courseKey = `${record.courseTitle} (${record.category || "N/A"})`;
+      
+      if (!courseHistoryMap[courseKey]) {
+        courseHistoryMap[courseKey] = [];
       }
-      const dateStr = record.date.toLocaleDateString();
-      if (record.wasPresent) {
-        grouped[key].present.push(dateStr);
-      } else {
-        grouped[key].absent.push(dateStr);
-      }
+      
+     
+      courseHistoryMap[courseKey].push({
+        date: record.date,
+        dateStr: record.date.toLocaleDateString(),
+        wasPresent: record.wasPresent,
+        hoursConducted: record.hoursConducted,
+        hoursPresent: record.hoursPresent,
+        hoursAbsent: record.hoursAbsent,
+      });
     });
 
-    const pageWidth =
-      doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const tableWidth = 440;
-    const startX =
-      doc.page.margins.left + Math.floor((pageWidth - tableWidth) / 2);
-    const colWidth = 220;
+   
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const tableWidth = 480;
+    const startX = doc.page.margins.left + Math.floor((pageWidth - tableWidth) / 2);
+    const dateColWidth = 120;
+    const statusColWidth = 100;
+    const hoursColWidth = 80;
+    const percentColWidth = 120;
     const rowHeight = 22;
     const headerHeight = 28;
 
-    Object.entries(grouped).forEach(([course, dates]) => {
+    
+    Object.entries(courseHistoryMap).forEach(([course, records]) => {
       doc.moveDown(1);
 
       doc
@@ -172,68 +230,68 @@ async function handleAttendancePdf(ctx) {
         .fillColor("#2874A6")
         .font("Helvetica-Bold")
         .text(course, summaryIndent, doc.y, { align: "left", underline: true });
-      doc.moveDown(0.3);
+      doc.moveDown(0.5);
 
       const startY = doc.y;
-
+      
       doc.save();
-      doc.rect(startX, startY, colWidth, headerHeight).fill("#D6EAF8");
-      doc
-        .rect(startX + colWidth, startY, colWidth, headerHeight)
-        .fill("#FADBD8");
+      doc.rect(startX, startY, tableWidth, headerHeight).fill("#D6EAF8");
       doc.restore();
 
       doc
         .fontSize(12)
         .fillColor("#154360")
-        .font("Helvetica-Bold")
-        .text("Present Dates", startX + 8, startY + 7, {
-          width: colWidth - 16,
-        });
-      doc.text("Absent Dates", startX + colWidth + 8, startY + 7, {
-        width: colWidth - 16,
-      });
+        .font("Helvetica-Bold");
+        
+      doc.text("Date", startX + 8, startY + 7, { width: dateColWidth - 16 });
+      doc.text("Status", startX + dateColWidth + 8, startY + 7, { width: statusColWidth - 16 });
+      doc.text("Hours", startX + dateColWidth + statusColWidth + 8, startY + 7, { width: hoursColWidth - 16 });
+      doc.text("Attendance %", startX + dateColWidth + statusColWidth + hoursColWidth + 8, startY + 7, { width: percentColWidth - 16 });
 
-      const maxRows = Math.max(dates.present.length, dates.absent.length);
-      const maxRowsToShow = Math.max(1, maxRows);
-
-      for (let i = 0; i < maxRowsToShow; i++) {
+      const displayRecords = records;
+      
+      displayRecords.forEach((record, i) => {
         const currentY = startY + headerHeight + i * rowHeight;
 
         if (i % 2 === 0) {
           doc.save();
-          doc.rect(startX, currentY, colWidth, rowHeight).fill("#EBF5FB");
-          doc
-            .rect(startX + colWidth, currentY, colWidth, rowHeight)
-            .fill("#FDEDEC");
+          doc.rect(startX, currentY, tableWidth, rowHeight).fill("#EBF5FB");
           doc.restore();
         }
+        
+        doc.rect(startX, currentY, tableWidth, rowHeight).stroke("#AED6F1");
 
-        doc.rect(startX, currentY, colWidth, rowHeight).stroke("#AED6F1");
-        doc
-          .rect(startX + colWidth, currentY, colWidth, rowHeight)
-          .stroke("#F5B7B1");
-
-        const presentDate = dates.present[i] || "";
         doc
           .fontSize(11)
-          .fillColor("#229954")
+          .fillColor("#212F3D")
           .font("Helvetica")
-          .text(presentDate || "None", startX + 8, currentY + 6, {
-            width: colWidth - 16,
-          });
+          .text(record.dateStr, startX + 8, currentY + 6, { width: dateColWidth - 16 });
 
-        const absentDate = dates.absent[i] || "";
         doc
           .fontSize(11)
-          .fillColor("#B03A2E")
-          .font("Helvetica")
-          .text(absentDate || "None", startX + colWidth + 8, currentY + 6, {
-            width: colWidth - 16,
-          });
-      }
+          .fillColor(record.wasPresent ? "#229954" : "#B03A2E")
+          .font("Helvetica-Bold")
+          .text(record.wasPresent ? "Present ✅" : "Absent ❌", startX + dateColWidth + 8, currentY + 6, { width: statusColWidth - 16 });
 
-      doc.y = startY + headerHeight + maxRowsToShow * rowHeight + 10;
+        doc
+          .fontSize(11)
+          .fillColor("#212F3D")
+          .font("Helvetica")
+          .text(`${record.hoursPresent}/${record.hoursConducted}`, startX + dateColWidth + statusColWidth + 8, currentY + 6, { width: hoursColWidth - 16 });
+
+        const percentage = record.attendancePercentage || 
+          (record.hoursConducted > 0 ? 
+          Math.round((record.hoursPresent / record.hoursConducted) * 100) : 0);
+        
+        doc
+          .fontSize(11)
+          .fillColor("#212F3D")
+          .font("Helvetica")
+          .text(`${percentage}%`, startX + dateColWidth + statusColWidth + hoursColWidth + 8, currentY + 6, { width: percentColWidth - 16 });
+      });
+
+      doc.y = startY + headerHeight + displayRecords.length * rowHeight + 10;
+      
       doc.moveDown();
     });
   }
@@ -244,7 +302,7 @@ async function handleAttendancePdf(ctx) {
     .fillColor("#888")
     .font("Helvetica-Oblique")
     .text(
-      " Genrated by Academia Telegram BOT, By SRM Insider Community ",
+      "Generated by Academia Telegram BOT, By SRM Insider Community",
       0,
       doc.page.height - 60,
       {

@@ -24,13 +24,16 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-
     marks: {
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
     attendance: {
       type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    attendanceHash: {
+      type: String,
       default: null,
     },
     userInfo: {
@@ -61,12 +64,10 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-//exam seats 
     notifiedSeats: {
       type: [String],
       default: [],
     },
-
     seatHashes: {
       type: Map,
       of: String,
