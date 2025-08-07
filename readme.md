@@ -18,6 +18,8 @@ A Telegram bot that provides SRM University students with easy access to their a
 - ✅ **Task Management**: Create, view, complete, and delete tasks with reminders.
 - 🔍 **Lost & Found**: Report lost items and search through the lost items portal.
 - 📁 **Document Vault**: Upload and access your important documents anytime.
+- 📑 **PDF Reports**: Generate detailed attendance and timetable PDFs.
+- 📆 **Academic Calendar**: View full academic calendar with day orders and events.
 - 🤖 **AI Assistant**: Chat with AI for attendance prediction and more.
 
 ## 🚀 Installation
@@ -36,6 +38,9 @@ A Telegram bot that provides SRM University students with easy access to their a
    TELEGRAM_BOT_TOKEN=your_bot_token
    MONGODB_URI=your_mongo_connection_string
    API_ENDPOINT=your_srm_api_endpoint
+   PRIVACY_URL=your_privacy_policy_url
+   TASK_SERVICE_URL=your_task_service_url
+   NOTIFICATION_API_URL=your_notification_service_url
    ```
 
 ## ⚙️ Configuration
@@ -43,6 +48,7 @@ A Telegram bot that provides SRM University students with easy access to their a
 - **Create a new Telegram bot** via [BotFather](https://t.me/botfather) to get your `TELEGRAM_BOT_TOKEN`.
 - **Set up a MongoDB database** and get your connection string.
 - **Configure the API endpoint** for SRM Academia data.
+- **Set up supporting services** for tasks, notifications, and document storage.
 
 ## 🏃‍♂️ Usage
 
@@ -56,14 +62,16 @@ npm start
 - `/start` - Start the bot and view the welcome message.
 - `/login` - Login to your SRM account.
 - `/attendance` - Check your attendance percentages.
+- `/attendancepdf` - Generate and download attendance report in PDF format.
 - `/marks` - View your academic marks and test scores.
 - `/timetable` - Get your complete weekly timetable.
+- `/timetablepdf` - Generate and download timetable in PDF format.
 - `/todaysclass` - View today's scheduled classes.
 - `/tomorrowclass` - View tomorrow's scheduled classes.
 - `/dayafterclass` - View classes scheduled for day after tomorrow.
 - `/user` - View your profile information.
 - `/courses` - List all enrolled courses.
-- `/calendar` - Check the academic calendar.
+- `/calendar` - Check the academic calendar with day orders and events.
 - `/addtask` - Create a new task with reminder.
 - `/tasks` - View your tasks.
 - `/complete` - Mark a task as complete.
@@ -96,6 +104,8 @@ The bot is structured with the following components:
 - **Axios** - HTTP Client for API calls.
 - **Node-Schedule** - Task Scheduling for notifications.
 - **Winston** - Logging service.
+- **Socket.io** - Real-time communications.
+- **PDF Generation** - For attendance and timetable reports.
 - **Groq** - AI service integration for attendance prediction.
 
 ## ⏲️ Notification System
@@ -106,13 +116,16 @@ The bot includes several notification services:
 - **Marks Update**: Real-time alerts when grades are updated.
 - **Attendance Update**: Real-time alerts when attendance is updated.
 - **Task Reminders**: Notifications for upcoming tasks and deadlines.
+- **Attendance History**: Tracking and notifying about attendance patterns.
 
 ## 🔐 Security
 
 - Credentials are deleted from chat after login.
-- Authentication tokens are stored securely.
-- User sessions are validated before accessing data.
+- Authentication tokens are stored securely in session.
+- Session validation before accessing sensitive data.
 - Documents are stored securely in the vault service.
+- Privacy policy provided for user transparency.
+- HTTPS for all API communications.
 
 ## 📋 Dependencies
 
@@ -120,6 +133,7 @@ Ensure you have the following installed:
 - Node.js (v16 or later)
 - MongoDB
 - Telegram Bot API
+- Supporting microservices for tasks, notifications, and document storage
 
 ## 👨‍💻 Development
 
