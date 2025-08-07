@@ -130,8 +130,11 @@ class AttendanceNotificationService {
           }
         }
         
+        // Save attendance history records for each course update
         for (const update of updatedCourses) {
-          await this.saveAttendanceHistory(user.telegramId, update.new, new Date());
+          // Determine if student was present in the latest class
+          const wasPresent = this.determineAttendanceStatus(update);
+          await this.saveAttendanceHistory(user.telegramId, update.new, wasPresent, new Date());
         }
         
         await User.findByIdAndUpdate(user._id, {
@@ -141,6 +144,28 @@ class AttendanceNotificationService {
         });
       }
     } catch (error) {}
+  }
+  
+
+  determineAttendanceStatus(update) {
+  
+    if (!update.old) {
+      return parseInt(update.new.hoursAbsent) === 0;
+    }
+    
+ 
+    const oldHoursConducted = parseInt(update.old.hoursConducted);
+    const newHoursConducted = parseInt(update.new.hoursConducted);
+    const oldHoursAbsent = parseInt(update.old.hoursAbsent);
+    const newHoursAbsent = parseInt(update.new.hoursAbsent);
+    
+
+    if (newHoursConducted > oldHoursConducted) {
+      return newHoursAbsent === oldHoursAbsent;
+    }
+    
+  
+    return (newHoursConducted - newHoursAbsent) > (oldHoursConducted - oldHoursAbsent);
   }
   
   generateAttendanceHash(attendance) {
@@ -162,12 +187,14 @@ class AttendanceNotificationService {
     }
   }
 
-  async saveAttendanceHistory(telegramId, course, date = new Date()) {
+
+  async saveAttendanceHistory(telegramId, course, wasPresent, date = new Date()) {
     try {
       const hoursConducted = parseInt(course.hoursConducted);
       const hoursAbsent = parseInt(course.hoursAbsent);
       const hoursPresent = hoursConducted - hoursAbsent;
-      const wasPresent = hoursConducted > 0 && hoursAbsent < hoursConducted;
+      
+      
       await AttendanceHistory.create({
         telegramId,
         courseTitle: course.courseTitle,
@@ -176,7 +203,7 @@ class AttendanceNotificationService {
         hoursConducted,
         hoursAbsent,
         hoursPresent,
-        wasPresent,
+        wasPresent, 
         attendancePercentage: parseFloat(course.attendancePercentage),
       });
     } catch (error) {}
@@ -376,6 +403,13 @@ class AttendanceNotificationService {
 
         if (newClasses > 0) {
           message += `New classes: ${newClasses}\n`;
+          
+          // Show if present or absent in the latest class
+          const wasPresent = this.determineAttendanceStatus(update);
+          message += wasPresent ? 
+            `✅ You were present in the latest class\n` : 
+            `❌ You were absent in the latest class\n`;
+            
           message += `Attended: ${attendedNew}/${newClasses}\n`;
         }
       }

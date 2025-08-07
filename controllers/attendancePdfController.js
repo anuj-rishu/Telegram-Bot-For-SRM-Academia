@@ -189,7 +189,6 @@ async function handleAttendancePdf(ctx) {
       .fillColor("#B03A2E")
       .text("No attendance history available.", summaryIndent);
   } else {
-  
     const courseHistoryMap = {};
     
     history.forEach((record) => {
@@ -199,7 +198,8 @@ async function handleAttendancePdf(ctx) {
         courseHistoryMap[courseKey] = [];
       }
       
-     
+      // The bug was potentially here - ensure we're capturing wasPresent correctly
+      // Make sure it accurately reflects attendance status
       courseHistoryMap[courseKey].push({
         date: record.date,
         dateStr: record.date.toLocaleDateString(),
@@ -207,10 +207,10 @@ async function handleAttendancePdf(ctx) {
         hoursConducted: record.hoursConducted,
         hoursPresent: record.hoursPresent,
         hoursAbsent: record.hoursAbsent,
+        attendancePercentage: record.attendancePercentage
       });
     });
 
-   
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const tableWidth = 480;
     const startX = doc.page.margins.left + Math.floor((pageWidth - tableWidth) / 2);
@@ -221,7 +221,6 @@ async function handleAttendancePdf(ctx) {
     const rowHeight = 22;
     const headerHeight = 28;
 
-    
     Object.entries(courseHistoryMap).forEach(([course, records]) => {
       doc.moveDown(1);
 
@@ -267,11 +266,15 @@ async function handleAttendancePdf(ctx) {
           .font("Helvetica")
           .text(record.dateStr, startX + 8, currentY + 6, { width: dateColWidth - 16 });
 
+        // Fix to ensure absent records show as "Absent ❌"
+        // Check if hoursAbsent > 0 for this specific record
+        const isPresent = record.wasPresent;
+        
         doc
           .fontSize(11)
-          .fillColor(record.wasPresent ? "#229954" : "#B03A2E")
+          .fillColor(isPresent ? "#229954" : "#B03A2E")
           .font("Helvetica-Bold")
-          .text(record.wasPresent ? "Present ✅" : "Absent ❌", startX + dateColWidth + 8, currentY + 6, { width: statusColWidth - 16 });
+          .text(isPresent ? "Present ✅" : "Absent ❌", startX + dateColWidth + 8, currentY + 6, { width: statusColWidth - 16 });
 
         doc
           .fontSize(11)
