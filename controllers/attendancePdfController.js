@@ -96,14 +96,14 @@ async function handleAttendancePdf(ctx) {
     attendanceArr.forEach((course) => {
       const hoursPresent = course.hoursConducted - course.hoursAbsent;
       const attendancePercentage = parseFloat(course.attendancePercentage);
-      
+
       let statusEmoji = "✅";
       if (attendancePercentage < 75 && attendancePercentage >= 65) {
         statusEmoji = "⚠️";
       } else if (attendancePercentage < 65) {
         statusEmoji = "❌";
       }
-      
+
       doc
         .fontSize(12)
         .fillColor("#212F3D")
@@ -113,15 +113,24 @@ async function handleAttendancePdf(ctx) {
           summaryIndent,
           doc.y
         );
-      
-      if (course.courseCode || course.facultyName || course.slot || course.roomNo) {
+
+      if (
+        course.courseCode ||
+        course.facultyName ||
+        course.slot ||
+        course.roomNo
+      ) {
         doc.fontSize(10).fillColor("#555").font("Helvetica");
-        
+
         if (course.courseCode) {
           doc.text(`   Code: ${course.courseCode}`, summaryIndent + 10, doc.y);
         }
         if (course.facultyName) {
-          doc.text(`   Faculty: ${course.facultyName}`, summaryIndent + 10, doc.y);
+          doc.text(
+            `   Faculty: ${course.facultyName}`,
+            summaryIndent + 10,
+            doc.y
+          );
         }
         if (course.slot) {
           doc.text(`   Slot: ${course.slot}`, summaryIndent + 10, doc.y);
@@ -130,7 +139,7 @@ async function handleAttendancePdf(ctx) {
           doc.text(`   Room: ${course.roomNo}`, summaryIndent + 10, doc.y);
         }
       }
-      
+
       doc
         .fontSize(11)
         .fillColor("#229954")
@@ -140,28 +149,44 @@ async function handleAttendancePdf(ctx) {
           summaryIndent + 10,
           doc.y
         );
-      
+
       if (attendancePercentage >= 75) {
-        const classesCanSkip = Math.floor((hoursPresent / 0.75) - course.hoursConducted);
+        const classesCanSkip = Math.floor(
+          hoursPresent / 0.75 - course.hoursConducted
+        );
         if (classesCanSkip > 0) {
           doc
             .fontSize(11)
             .fillColor("#2874A6")
-            .text(`   You can skip ${classesCanSkip} more classes and still maintain 75%`, summaryIndent + 10, doc.y);
+            .text(
+              `   You can skip ${classesCanSkip} more classes and still maintain 75%`,
+              summaryIndent + 10,
+              doc.y
+            );
         } else {
           doc
             .fontSize(11)
             .fillColor("#2874A6")
-            .text(`   Attendance is good! Keep it up.`, summaryIndent + 10, doc.y);
+            .text(
+              `   Attendance is good! Keep it up.`,
+              summaryIndent + 10,
+              doc.y
+            );
         }
       } else {
-        const classesNeeded = Math.ceil((0.75 * course.hoursConducted - hoursPresent) / 0.25);
+        const classesNeeded = Math.ceil(
+          (0.75 * course.hoursConducted - hoursPresent) / 0.25
+        );
         doc
           .fontSize(11)
           .fillColor("#B03A2E")
-          .text(`   Need to attend ${classesNeeded} more consecutive classes to reach 75%`, summaryIndent + 10, doc.y);
+          .text(
+            `   Need to attend ${classesNeeded} more consecutive classes to reach 75%`,
+            summaryIndent + 10,
+            doc.y
+          );
       }
-      
+
       doc.moveDown(0.5);
     });
   }
@@ -190,40 +215,64 @@ async function handleAttendancePdf(ctx) {
       .text("No attendance history available.", summaryIndent);
   } else {
     const courseHistoryMap = {};
-    
+
     history.forEach((record) => {
       const courseKey = `${record.courseTitle} (${record.category || "N/A"})`;
-      
       if (!courseHistoryMap[courseKey]) {
         courseHistoryMap[courseKey] = [];
       }
-      
-      // The bug was potentially here - ensure we're capturing wasPresent correctly
-      // Make sure it accurately reflects attendance status
-      courseHistoryMap[courseKey].push({
-        date: record.date,
-        dateStr: record.date.toLocaleDateString(),
-        wasPresent: record.wasPresent,
-        hoursConducted: record.hoursConducted,
-        hoursPresent: record.hoursPresent,
-        hoursAbsent: record.hoursAbsent,
-        attendancePercentage: record.attendancePercentage
-      });
+
+      courseHistoryMap[courseKey].push(record);
     });
 
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const pageWidth =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const tableWidth = 480;
-    const startX = doc.page.margins.left + Math.floor((pageWidth - tableWidth) / 2);
-    const dateColWidth = 120;
-    const statusColWidth = 100;
-    const hoursColWidth = 80;
-    const percentColWidth = 120;
-    const rowHeight = 22;
-    const headerHeight = 28;
+    const startX =
+      doc.page.margins.left + Math.floor((pageWidth - tableWidth) / 2);
+    const dateColWidth = 100;
+    const statusColWidth = 90;
+    const hoursColWidth = 100;
+    const percentColWidth = 100;
+    const rowHeight = 25;
+    const headerHeight = 30;
+
+    const MAX_ROWS_PER_PAGE = 12;
 
     Object.entries(courseHistoryMap).forEach(([course, records]) => {
-      doc.moveDown(1);
+      if (doc.y > doc.page.height - 150) {
+        doc.addPage();
+        doc.y = doc.page.margins.top + 20;
+      }
 
+      records.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const uniqueRecords = [];
+      const dateMap = {};
+
+      records.forEach((record) => {
+        const dateKey = record.date.toISOString().split("T")[0];
+
+        if (
+          !dateMap[dateKey] ||
+          record.createdAt > dateMap[dateKey].createdAt
+        ) {
+          if (dateMap[dateKey]) {
+            const index = uniqueRecords.findIndex(
+              (r) => r.date.toISOString().split("T")[0] === dateKey
+            );
+            if (index !== -1) {
+              uniqueRecords.splice(index, 1);
+            }
+          }
+          uniqueRecords.push(record);
+          dateMap[dateKey] = record;
+        }
+      });
+
+      uniqueRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      doc.moveDown(1);
       doc
         .fontSize(14)
         .fillColor("#2874A6")
@@ -231,72 +280,148 @@ async function handleAttendancePdf(ctx) {
         .text(course, summaryIndent, doc.y, { align: "left", underline: true });
       doc.moveDown(0.5);
 
-      const startY = doc.y;
-      
-      doc.save();
-      doc.rect(startX, startY, tableWidth, headerHeight).fill("#D6EAF8");
-      doc.restore();
+      for (let i = 0; i < uniqueRecords.length; i += MAX_ROWS_PER_PAGE) {
+        const startY = doc.y;
+        const batchRecords = uniqueRecords.slice(i, i + MAX_ROWS_PER_PAGE);
 
-      doc
-        .fontSize(12)
-        .fillColor("#154360")
-        .font("Helvetica-Bold");
-        
-      doc.text("Date", startX + 8, startY + 7, { width: dateColWidth - 16 });
-      doc.text("Status", startX + dateColWidth + 8, startY + 7, { width: statusColWidth - 16 });
-      doc.text("Hours", startX + dateColWidth + statusColWidth + 8, startY + 7, { width: hoursColWidth - 16 });
-      doc.text("Attendance %", startX + dateColWidth + statusColWidth + hoursColWidth + 8, startY + 7, { width: percentColWidth - 16 });
+        doc.save();
+        doc.rect(startX, startY, tableWidth, headerHeight).fill("#D6EAF8");
+        doc.restore();
 
-      const displayRecords = records;
-      
-      displayRecords.forEach((record, i) => {
-        const currentY = startY + headerHeight + i * rowHeight;
+        doc.fontSize(12).fillColor("#154360").font("Helvetica-Bold");
 
-        if (i % 2 === 0) {
-          doc.save();
-          doc.rect(startX, currentY, tableWidth, rowHeight).fill("#EBF5FB");
-          doc.restore();
+        doc.text("Date", startX + 8, startY + 7, { width: dateColWidth - 16 });
+        doc.text("Status", startX + dateColWidth + 8, startY + 7, {
+          width: statusColWidth - 16,
+        });
+        doc.text(
+          "Hours",
+          startX + dateColWidth + statusColWidth + 8,
+          startY + 7,
+          { width: hoursColWidth - 16 }
+        );
+        doc.text(
+          "Attendance %",
+          startX + dateColWidth + statusColWidth + hoursColWidth + 8,
+          startY + 7,
+          { width: percentColWidth - 16 }
+        );
+
+        batchRecords.forEach((record, j) => {
+          drawTableRow(
+            record,
+            j,
+            startY,
+            doc,
+            startX,
+            dateColWidth,
+            statusColWidth,
+            hoursColWidth,
+            percentColWidth,
+            rowHeight,
+            tableWidth,
+            headerHeight
+          );
+        });
+
+        doc.y = startY + headerHeight + batchRecords.length * rowHeight + 20;
+
+        if (i + MAX_ROWS_PER_PAGE < uniqueRecords.length) {
+          doc.addPage();
+          doc.y = doc.page.margins.top + 40;
+
+          doc
+            .fontSize(14)
+            .fillColor("#2874A6")
+            .font("Helvetica-Bold")
+            .text(`${course} (continued)`, summaryIndent, doc.y - 30);
+
+          doc.moveDown(0.5);
         }
-        
-        doc.rect(startX, currentY, tableWidth, rowHeight).stroke("#AED6F1");
-
-        doc
-          .fontSize(11)
-          .fillColor("#212F3D")
-          .font("Helvetica")
-          .text(record.dateStr, startX + 8, currentY + 6, { width: dateColWidth - 16 });
-
-        // Fix to ensure absent records show as "Absent ❌"
-        // Check if hoursAbsent > 0 for this specific record
-        const isPresent = record.wasPresent;
-        
-        doc
-          .fontSize(11)
-          .fillColor(isPresent ? "#229954" : "#B03A2E")
-          .font("Helvetica-Bold")
-          .text(isPresent ? "Present ✅" : "Absent ❌", startX + dateColWidth + 8, currentY + 6, { width: statusColWidth - 16 });
-
-        doc
-          .fontSize(11)
-          .fillColor("#212F3D")
-          .font("Helvetica")
-          .text(`${record.hoursPresent}/${record.hoursConducted}`, startX + dateColWidth + statusColWidth + 8, currentY + 6, { width: hoursColWidth - 16 });
-
-        const percentage = record.attendancePercentage || 
-          (record.hoursConducted > 0 ? 
-          Math.round((record.hoursPresent / record.hoursConducted) * 100) : 0);
-        
-        doc
-          .fontSize(11)
-          .fillColor("#212F3D")
-          .font("Helvetica")
-          .text(`${percentage}%`, startX + dateColWidth + statusColWidth + hoursColWidth + 8, currentY + 6, { width: percentColWidth - 16 });
-      });
-
-      doc.y = startY + headerHeight + displayRecords.length * rowHeight + 10;
-      
-      doc.moveDown();
+      }
     });
+  }
+
+  function drawTableRow(
+    record,
+    i,
+    startY,
+    doc,
+    startX,
+    dateColWidth,
+    statusColWidth,
+    hoursColWidth,
+    percentColWidth,
+    rowHeight,
+    tableWidth,
+    headerHeight
+  ) {
+    const currentY = startY + headerHeight + i * rowHeight;
+
+    if (i % 2 === 0) {
+      doc.save();
+      doc.rect(startX, currentY, tableWidth, rowHeight).fill("#EBF5FB");
+      doc.restore();
+    }
+
+    doc.rect(startX, currentY, tableWidth, rowHeight).stroke("#AED6F1");
+
+    let dateStr;
+    try {
+      dateStr = new Date(record.date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch (e) {
+      dateStr = "Invalid Date";
+    }
+
+    doc
+      .fontSize(11)
+      .fillColor("#212F3D")
+      .font("Helvetica")
+      .text(dateStr, startX + 8, currentY + 6, { width: dateColWidth - 16 });
+
+    const isPresent = record.wasPresent;
+    doc
+      .fontSize(11)
+      .fillColor(isPresent ? "#229954" : "#B03A2E")
+      .font("Helvetica-Bold")
+      .text(
+        isPresent ? "Present ✅" : "Absent ❌",
+        startX + dateColWidth + 8,
+        currentY + 6,
+        { width: statusColWidth - 16 }
+      );
+
+    doc
+      .fontSize(11)
+      .fillColor("#212F3D")
+      .font("Helvetica")
+      .text(
+        `${record.hoursPresent}/${record.hoursConducted}`,
+        startX + dateColWidth + statusColWidth + 8,
+        currentY + 6,
+        { width: hoursColWidth - 16 }
+      );
+
+    const percentage =
+      record.attendancePercentage ||
+      (record.hoursConducted > 0
+        ? Math.round((record.hoursPresent / record.hoursConducted) * 100)
+        : 0);
+
+    doc
+      .fontSize(11)
+      .fillColor("#212F3D")
+      .font("Helvetica")
+      .text(
+        `${percentage}%`,
+        startX + dateColWidth + statusColWidth + hoursColWidth + 8,
+        currentY + 6,
+        { width: percentColWidth - 16 }
+      );
   }
 
   doc.moveDown(2);

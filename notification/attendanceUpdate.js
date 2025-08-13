@@ -2,7 +2,7 @@ const User = require("../model/user");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const AttendanceHistory = require("../model/attendanceHistory");
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 class AttendanceNotificationService {
   constructor(bot) {
@@ -63,15 +63,15 @@ class AttendanceNotificationService {
       }).lean();
 
       const BATCH_SIZE = 15;
-      
+
       for (let i = 0; i < users.length; i += BATCH_SIZE) {
         const batch = users.slice(i, i + BATCH_SIZE);
-        
+
         await Promise.all(
           batch.map(async (user) => {
             if (this.processingUsers.has(user.telegramId)) return;
             this.processingUsers.add(user.telegramId);
-            
+
             try {
               await this.checkUserAttendance(user);
             } finally {
@@ -79,47 +79,47 @@ class AttendanceNotificationService {
             }
           })
         );
-        
+
         if (i + BATCH_SIZE < users.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise((resolve) => setTimeout(resolve, 200));
         }
       }
     } catch (error) {}
   }
-  
+
   async checkUserAttendance(user) {
     try {
       const session = sessionManager.getSession(user.telegramId);
       if (!session) return;
-      
+
       const response = await apiService.makeAuthenticatedRequest(
         "/attendance",
         session
       );
-      
+
       const newAttendanceData = response.data;
       if (!newAttendanceData?.attendance) return;
-      
+
       const newHash = this.generateAttendanceHash(newAttendanceData.attendance);
-      
+
       if (user.attendanceHash === newHash) {
         return;
       }
-      
+
       const updatedCourses = this.compareAttendance(
         user.attendance,
         newAttendanceData
       );
-      
+
       if (updatedCourses.length > 0) {
         const hasRealChanges = this.hasSignificantChanges(updatedCourses);
-        
+
         if (hasRealChanges) {
           const newUpdates = this.filterAlreadyNotifiedUpdates(
             user.telegramId,
             updatedCourses
           );
-          
+
           if (newUpdates.length > 0) {
             await this.sendAttendanceUpdateNotification(
               user.telegramId,
@@ -129,14 +129,17 @@ class AttendanceNotificationService {
             await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
           }
         }
-        
-        // Save attendance history records for each course update
+
         for (const update of updatedCourses) {
-          // Determine if student was present in the latest class
           const wasPresent = this.determineAttendanceStatus(update);
-          await this.saveAttendanceHistory(user.telegramId, update.new, wasPresent, new Date());
+          await this.saveAttendanceHistory(
+            user.telegramId,
+            update.new,
+            wasPresent,
+            new Date()
+          );
         }
-        
+
         await User.findByIdAndUpdate(user._id, {
           attendance: newAttendanceData,
           attendanceHash: newHash,
@@ -145,56 +148,56 @@ class AttendanceNotificationService {
       }
     } catch (error) {}
   }
-  
 
   determineAttendanceStatus(update) {
-  
     if (!update.old) {
       return parseInt(update.new.hoursAbsent) === 0;
     }
-    
- 
+
     const oldHoursConducted = parseInt(update.old.hoursConducted);
     const newHoursConducted = parseInt(update.new.hoursConducted);
     const oldHoursAbsent = parseInt(update.old.hoursAbsent);
     const newHoursAbsent = parseInt(update.new.hoursAbsent);
-    
 
     if (newHoursConducted > oldHoursConducted) {
       return newHoursAbsent === oldHoursAbsent;
     }
-    
-  
-    return (newHoursConducted - newHoursAbsent) > (oldHoursConducted - oldHoursAbsent);
+
+    return (
+      newHoursConducted - newHoursAbsent > oldHoursConducted - oldHoursAbsent
+    );
   }
-  
+
   generateAttendanceHash(attendance) {
     try {
-      const hashData = attendance.map(course => ({
+      const hashData = attendance.map((course) => ({
         courseTitle: course.courseTitle,
         category: course.category,
         hoursConducted: course.hoursConducted,
         hoursAbsent: course.hoursAbsent,
-        attendancePercentage: course.attendancePercentage
+        attendancePercentage: course.attendancePercentage,
       }));
-      
+
       return crypto
-        .createHash('md5')
+        .createHash("md5")
         .update(JSON.stringify(hashData))
-        .digest('hex');
+        .digest("hex");
     } catch (error) {
       return null;
     }
   }
 
-
-  async saveAttendanceHistory(telegramId, course, wasPresent, date = new Date()) {
+  async saveAttendanceHistory(
+    telegramId,
+    course,
+    wasPresent,
+    date = new Date()
+  ) {
     try {
       const hoursConducted = parseInt(course.hoursConducted);
       const hoursAbsent = parseInt(course.hoursAbsent);
       const hoursPresent = hoursConducted - hoursAbsent;
-      
-      
+
       await AttendanceHistory.create({
         telegramId,
         courseTitle: course.courseTitle,
@@ -203,7 +206,7 @@ class AttendanceNotificationService {
         hoursConducted,
         hoursAbsent,
         hoursPresent,
-        wasPresent, 
+        wasPresent,
         attendancePercentage: parseFloat(course.attendancePercentage),
       });
     } catch (error) {}
@@ -403,13 +406,12 @@ class AttendanceNotificationService {
 
         if (newClasses > 0) {
           message += `New classes: ${newClasses}\n`;
-          
-          // Show if present or absent in the latest class
+
           const wasPresent = this.determineAttendanceStatus(update);
-          message += wasPresent ? 
-            `✅ You were present in the latest class\n` : 
-            `❌ You were absent in the latest class\n`;
-            
+          message += wasPresent
+            ? `✅ You were present in the latest class\n`
+            : `❌ You were absent in the latest class\n`;
+
           message += `Attended: ${attendedNew}/${newClasses}\n`;
         }
       }
