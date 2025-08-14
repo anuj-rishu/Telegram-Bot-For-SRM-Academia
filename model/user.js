@@ -36,6 +36,10 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    marksHash: {
+      type: String,
+      default: null,
+    },
     userInfo: {
       type: mongoose.Schema.Types.Mixed,
       default: null,

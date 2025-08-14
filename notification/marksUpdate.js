@@ -1,6 +1,7 @@
 const User = require("../model/user");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
+const crypto = require("crypto");
 
 class MarksNotificationService {
   constructor(bot) {
@@ -73,6 +74,13 @@ class MarksNotificationService {
     }
   }
 
+  generateMarksHash(marksData) {
+    if (!marksData || !marksData.marks) return null;
+    
+    const marksString = JSON.stringify(marksData);
+    return crypto.createHash('md5').update(marksString).digest('hex');
+  }
+
   async processUserMarks(user) {
     try {
       const session = sessionManager.getSession(user.telegramId);
@@ -85,6 +93,10 @@ class MarksNotificationService {
       const newMarksData = response.data;
 
       if (!newMarksData?.marks) return;
+
+      const newMarksHash = this.generateMarksHash(newMarksData);
+      
+      if (newMarksHash === user.marksHash) return;
 
       const updatedCourses = this.compareMarks(user.marks, newMarksData);
 
@@ -102,6 +114,7 @@ class MarksNotificationService {
 
         await User.findByIdAndUpdate(user._id, {
           marks: newMarksData,
+          marksHash: newMarksHash,
           lastMarksUpdate: new Date(),
         });
       }
