@@ -1,7 +1,6 @@
 const axios = require("axios");
 const objectHash = require("object-hash");
 const User = require("../model/user");
-// const logger = require("../utils/logger"); // Removed for production
 const mongoose = require("mongoose");
 const config = require("../config/config");
 
@@ -43,7 +42,6 @@ class SeatFinderService {
     }
 
     this.isProcessing = true;
-    // logger.info("Starting seat check process");
 
     try {
       if (mongoose.connection.readyState !== 1) {

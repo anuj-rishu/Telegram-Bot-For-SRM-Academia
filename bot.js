@@ -24,6 +24,7 @@ const taskController = require("./controllers/taskController");
 const documentController = require("./controllers/documentController");
 const timetablePdfController = require("./controllers/timetablePdfController");
 const attendancePdfController = require("./controllers/attendancePdfController");
+const calendarController = require('./controllers/calendarController');
 
 //notification service
 const NotificationService = require("./notification/timetable");
@@ -114,7 +115,8 @@ bot.command("user", requireLogin, userController.handleUserInfo);
 bot.command("todaysclass", timetableController.handleTodaysClass);
 bot.command("tomorrowclass", timetableController.handleTomorrowClass);
 bot.command("dayafterclass", timetableController.handleDayAfterClass);
-
+bot.command("calendar", requireLogin, calendarController.handleCalendar);
+bot.action(/^cal_.*$/, requireLogin, calendarController.handleCalendarCallback);
 //lost and found command
 bot.command(
   "reportlost",
