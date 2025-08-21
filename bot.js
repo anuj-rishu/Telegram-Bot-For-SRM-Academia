@@ -172,6 +172,7 @@ bot.help((ctx) => {
       "/attendancepdf - Get your attendance report in detail\n" +
       "/marks - Check your marks\n" +
       "/timetable - Get your timetable\n" +
+      "/calender - Get simplified calendar\n" +
       "/timetablepdf - Get timetable in PDF\n" +
       "/todaysclass - Get Todays Class\n" +
       "/tomorrowclass - Get Tomorrows Class\n" +
