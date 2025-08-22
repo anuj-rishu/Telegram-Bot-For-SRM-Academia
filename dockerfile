@@ -2,15 +2,15 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm install --production
 
-# Copy application code
+# Install PM2 globally
+RUN npm install -g pm2
+
 COPY . .
 
-# Expose the port your app runs on
 EXPOSE 9000
 
-# Run the application
-CMD ["node", "server.js"]
+# Run app with PM2 in cluster mode
+CMD ["pm2-runtime", "start", "server.js", "-i", "max"]
