@@ -43,6 +43,53 @@ A Telegram bot that provides SRM University students with easy access to their a
    NOTIFICATION_API_URL=your_notification_service_url
    ```
 
+## 🐳 Docker Deployment
+
+You can easily deploy the SRM Academia Telegram Bot using Docker:
+
+### Using Docker Compose (Recommended)
+
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/anuj-rishu/Telegram-Bot-For-SRM-Academia
+   cd Telegram-Bot-For-SRM-Academia
+   ```
+
+2. Create a `.env` file with your configuration (see Configuration section).
+
+3. Build and start the container:
+   ```sh
+   docker-compose up -d
+   ```
+
+4. View logs:
+   ```sh
+   docker-compose logs -f
+   ```
+
+5. Stop the container:
+   ```sh
+   docker-compose down
+   ```
+
+### Using Docker Directly
+
+1. Build the Docker image:
+   ```sh
+   docker build -t srm-academia-bot .
+   ```
+
+2. Run the container:
+   ```sh
+   docker run -d --name srm-academia-bot \
+     -p 9000:9000 \
+     --env-file .env \
+     --restart always \
+     srm-academia-bot
+   ```
+
+The application uses PM2 in cluster mode for optimal performance and automatic load balancing across available CPU cores.
+
 ## ⚙️ Configuration
 
 - **Create a new Telegram bot** via [BotFather](https://t.me/botfather) to get your `TELEGRAM_BOT_TOKEN`.
