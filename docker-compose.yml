@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: srm-academia-bot
+    restart: always
+    ports:
+      - "9000:9000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,17 +1,16 @@
 FROM node:18-alpine
 
-# Create app directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install app dependencies
+# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install --production
+RUN npm install
 
-# Bundle app source
+# Copy application code
 COPY . .
 
-# Set environment variables
-ENV NODE_ENV=production
+# Expose the port your app runs on
+EXPOSE 9000
 
-# Start the bot
+# Run the application
 CMD ["node", "server.js"]
