@@ -47,6 +47,24 @@ A Telegram bot that provides SRM University students with easy access to their a
 
 You can easily deploy the SRM Academia Telegram Bot using Docker:
 
+### Using Pre-built Docker Image (Quickest)
+
+1. Pull the pre-built image from Docker Hub:
+   ```sh
+   docker pull anujrishu4454/telegram-bot:latest
+   ```
+
+2. Create a `.env` file with your configuration (see Configuration section).
+
+3. Run the container:
+   ```sh
+   docker run -d --name srm-academia-bot \
+     -p 9000:9000 \
+     --env-file .env \
+     --restart always \
+     anujrishu4454/telegram-bot:latest
+   ```
+
 ### Using Docker Compose (Recommended)
 
 1. Clone the repository:
@@ -89,6 +107,29 @@ You can easily deploy the SRM Academia Telegram Bot using Docker:
    ```
 
 The application uses PM2 in cluster mode for optimal performance and automatic load balancing across available CPU cores.
+
+### Nginx Configuration
+
+The project includes Nginx configuration for proper web routing:
+
+```nginx
+server {
+    listen 80;
+
+    server_name _;
+
+    location / {
+        proxy_pass http://telegram-bot:9000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+When using Docker Compose, this configuration is automatically applied. If deploying manually, you can use this configuration for your Nginx server.
 
 ## ⚙️ Configuration
 
