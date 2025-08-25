@@ -1,27 +1,80 @@
+const config = require("../config/config");
+const Redis = require("ioredis");
+const amqp = require("amqplib");
 const User = require("../model/user");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const crypto = require("crypto");
+const logger = require("../utils/logger");
 
 class MarksNotificationService {
   constructor(bot) {
     this.bot = bot;
-    this.notifiedUpdates = new Map();
 
-    this.loadNotifiedUpdatesFromDB();
+    this.redis = new Redis({
+      host: config.REDIS_HOST,
+      port: config.REDIS_PORT,
+      password: config.REDIS_PASSWORD,
+      retryStrategy: (times) => Math.min(times * 50, 2000),
+    });
 
-    this.batchSize = 10;
-    this.batchDelay = 1200; 
-    this.isProcessing = false;
+    this.initializeRabbitMQ();
 
-    setTimeout(() => this.startBatchMarksCheck(), 10000);
+    setTimeout(() => this.migrateNotificationData(), 5000);
+
+    this.batchSize = 30;
+    this.batchDelay = 100;
+
+    setTimeout(() => this.checkMarksUpdates(), 10000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
-  async loadNotifiedUpdatesFromDB() {
+  async initializeRabbitMQ() {
+    try {
+      const connection = await amqp.connect(config.RABBITMQ_URL);
+
+      connection.on("error", (err) => {
+        logger.error(`RabbitMQ connection error: ${err.message}`);
+        setTimeout(() => this.initializeRabbitMQ(), 5000);
+      });
+
+      this.channel = await connection.createChannel();
+
+      await this.channel.assertQueue("marks_updates", {
+        durable: true,
+        messageTtl: 3600000,
+      });
+
+      this.channel.prefetch(10);
+
+      this.channel.consume("marks_updates", async (msg) => {
+        if (msg !== null) {
+          try {
+            const { telegramId, updates } = JSON.parse(msg.content.toString());
+            await this.sendMarksUpdateNotification(telegramId, updates);
+            this.channel.ack(msg);
+          } catch (error) {
+            logger.error(
+              `Error processing marks notification: ${error.message}`
+            );
+            if (error.code !== "ETIMEDOUT" && error.code !== "ECONNREFUSED") {
+              this.channel.nack(msg, false, true);
+            } else {
+              this.channel.nack(msg, false, false);
+            }
+          }
+        }
+      });
+    } catch (error) {
+      logger.error(`Failed to initialize RabbitMQ: ${error.message}`);
+      setTimeout(() => this.initializeRabbitMQ(), 5000);
+    }
+  }
+
+  async migrateNotificationData() {
     try {
       const users = await User.find({
-        notifiedMarksUpdates: { $exists: true },
+        notifiedMarksUpdates: { $exists: true, $ne: [] },
       });
 
       for (const user of users) {
@@ -29,62 +82,113 @@ class MarksNotificationService {
           user.notifiedMarksUpdates &&
           Array.isArray(user.notifiedMarksUpdates)
         ) {
+          const pipeline = this.redis.pipeline();
+
           user.notifiedMarksUpdates.forEach((update) => {
             if (update && update.id && update.timestamp) {
-              this.notifiedUpdates.set(update.id, update.timestamp);
+              pipeline.set(
+                `marks_notification:${update.id}`,
+                update.timestamp,
+                "EX",
+                86400
+              );
             }
+          });
+
+          await pipeline.exec();
+        }
+
+        if (
+          user.notifiedMarksUpdates.length > 0 &&
+          (typeof user.notifiedMarksUpdates[0] === "string" ||
+            !user.notifiedMarksUpdates[0].id)
+        ) {
+          await User.findByIdAndUpdate(user._id, {
+            notifiedMarksUpdates: [],
           });
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Migration error: ${error.message}`);
+    }
   }
 
-  async startBatchMarksCheck() {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
+  async isAlreadyNotified(updateId) {
+    return Boolean(await this.redis.exists(`marks_notification:${updateId}`));
+  }
 
+  async markAsNotified(updateId, timestamp = Date.now()) {
+    await this.redis.set(
+      `marks_notification:${updateId}`,
+      timestamp,
+      "EX",
+      86400
+    );
+  }
+
+  async checkMarksUpdates() {
     try {
       const users = await User.find({
         token: { $exists: true },
         marks: { $exists: true },
-      });
+      }).lean();
 
-      let index = 0;
-      const total = users.length;
-      const processBatch = async () => {
-        const batch = users.slice(index, index + this.batchSize);
+      for (let i = 0; i < users.length; i += this.batchSize) {
+        const batch = users.slice(i, i + this.batchSize);
+
         await Promise.all(
           batch.map(async (user) => {
-            await this.processUserMarks(user);
+            const lockKey = `marks_lock:${user.telegramId}`;
+            const lock = await this.redis.set(lockKey, "1", "NX", "EX", 60);
+
+            if (!lock) return;
+
+            try {
+              await this.processUserMarks(user);
+            } finally {
+              await this.redis.del(lockKey);
+            }
           })
         );
-        index += this.batchSize;
-        if (index < total) {
-          setTimeout(processBatch, this.batchDelay);
-        } else {
-          setTimeout(() => {
-            this.isProcessing = false;
-            this.startBatchMarksCheck();
-          }, Math.max(0, 60000 - this.batchDelay * Math.ceil(total / this.batchSize)));
+
+        if (i + this.batchSize < users.length) {
+          await new Promise((resolve) => setTimeout(resolve, this.batchDelay));
         }
-      };
-      processBatch();
+      }
+
+      // Schedule next check
+      setTimeout(
+        () => this.checkMarksUpdates(),
+        Math.max(
+          0,
+          60000 - this.batchDelay * Math.ceil(users.length / this.batchSize)
+        )
+      );
     } catch (error) {
-      this.isProcessing = false;
+      logger.error(`Error checking marks updates: ${error.message}`);
+      setTimeout(() => this.checkMarksUpdates(), 60000);
     }
   }
 
   generateMarksHash(marksData) {
     if (!marksData || !marksData.marks) return null;
-    
+
     const marksString = JSON.stringify(marksData);
-    return crypto.createHash('md5').update(marksString).digest('hex');
+    return crypto.createHash("md5").update(marksString).digest("hex");
   }
 
   async processUserMarks(user) {
     try {
       const session = sessionManager.getSession(user.telegramId);
       if (!session) return;
+
+      // Check cached marks data
+      let oldMarksData = user.marks;
+      const cachedData = await this.redis.get(`marks:${user.telegramId}`);
+
+      if (cachedData) {
+        oldMarksData = JSON.parse(cachedData);
+      }
 
       const response = await apiService.makeAuthenticatedRequest(
         "/marks",
@@ -94,21 +198,39 @@ class MarksNotificationService {
 
       if (!newMarksData?.marks) return;
 
+      // Cache new marks data
+      await this.redis.set(
+        `marks:${user.telegramId}`,
+        JSON.stringify(newMarksData),
+        "EX",
+        600
+      );
+
       const newMarksHash = this.generateMarksHash(newMarksData);
-      
+
       if (newMarksHash === user.marksHash) return;
 
-      const updatedCourses = this.compareMarks(user.marks, newMarksData);
+      const updatedCourses = this.compareMarks(oldMarksData, newMarksData);
 
       if (updatedCourses.length > 0) {
-        const newUpdates = this.filterAlreadyNotifiedUpdates(
+        const newUpdates = await this.filterAlreadyNotifiedUpdates(
           user.telegramId,
           updatedCourses
         );
 
         if (newUpdates.length > 0) {
-          await this.sendMarksUpdateNotification(user.telegramId, newUpdates);
-          this.markUpdatesAsNotified(user.telegramId, newUpdates);
+          this.channel.sendToQueue(
+            "marks_updates",
+            Buffer.from(
+              JSON.stringify({
+                telegramId: user.telegramId,
+                updates: newUpdates,
+              })
+            ),
+            { persistent: true }
+          );
+
+          await this.markUpdatesAsNotified(user.telegramId, newUpdates);
           await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
         }
 
@@ -118,7 +240,38 @@ class MarksNotificationService {
           lastMarksUpdate: new Date(),
         });
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(
+        `Error processing marks for user ${user.telegramId}: ${error.message}`
+      );
+    }
+  }
+
+  async filterAlreadyNotifiedUpdates(telegramId, updates) {
+    const filteredUpdates = [];
+
+    for (const update of updates) {
+      const updateId = this.generateUpdateIdentifier(telegramId, update);
+      const isNotified = await this.isAlreadyNotified(updateId);
+
+      if (!isNotified) {
+        filteredUpdates.push(update);
+      }
+    }
+
+    return filteredUpdates;
+  }
+
+  async markUpdatesAsNotified(telegramId, updates) {
+    const pipeline = this.redis.pipeline();
+    const now = Date.now();
+
+    updates.forEach((update) => {
+      const updateId = this.generateUpdateIdentifier(telegramId, update);
+      pipeline.set(`marks_notification:${updateId}`, now, "EX", 86400);
+    });
+
+    await pipeline.exec();
   }
 
   generateUpdateIdentifier(telegramId, update) {
@@ -131,27 +284,24 @@ class MarksNotificationService {
     return `${telegramId}:${detailsString}`;
   }
 
-  filterAlreadyNotifiedUpdates(telegramId, updates) {
-    return updates.filter((update) => {
-      const updateId = this.generateUpdateIdentifier(telegramId, update);
-      return !this.notifiedUpdates.has(updateId);
-    });
-  }
-
-  markUpdatesAsNotified(telegramId, updates) {
-    const now = Date.now();
-    updates.forEach((update) => {
-      const updateId = this.generateUpdateIdentifier(telegramId, update);
-      this.notifiedUpdates.set(updateId, now);
-    });
-  }
-
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
     try {
       const user = await User.findOne({ telegramId });
       if (!user) return;
 
-      const notifiedUpdates = user.notifiedMarksUpdates || [];
+      let notifiedUpdates = [];
+
+      if (Array.isArray(user.notifiedMarksUpdates)) {
+        notifiedUpdates = user.notifiedMarksUpdates.filter(
+          (update) =>
+            update &&
+            typeof update === "object" &&
+            update.id &&
+            typeof update.id === "string" &&
+            update.timestamp
+        );
+      }
+
       const now = Date.now();
 
       newUpdates.forEach((update) => {
@@ -169,9 +319,11 @@ class MarksNotificationService {
       const updatesToStore = notifiedUpdates.slice(-MAX_STORED_UPDATES);
 
       await User.findByIdAndUpdate(user._id, {
-        notifiedMarksUpdates: updatesToStore,
+        $set: { notifiedMarksUpdates: updatesToStore },
       });
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Error saving notified updates to DB: ${error.message}`);
+    }
   }
 
   compareMarks(oldMarks, newMarks) {
@@ -301,17 +453,38 @@ class MarksNotificationService {
         parse_mode: "Markdown",
         disable_notification: false,
       });
-    } catch (error) {}
+    } catch (error) {
+      logger.error(
+        `Error sending marks notification to ${telegramId}: ${error.message}`
+      );
+      throw error;
+    }
   }
 
-  cleanupOldNotifications() {
-    const ONE_DAY = 24 * 60 * 60 * 1000;
-    const now = Date.now();
+  async cleanupOldNotifications() {
+    try {
+      const users = await User.find({
+        notifiedMarksUpdates: { $exists: true, $ne: [] },
+      });
 
-    for (const [updateId, timestamp] of this.notifiedUpdates.entries()) {
-      if (now - timestamp > ONE_DAY) {
-        this.notifiedUpdates.delete(updateId);
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+
+      for (const user of users) {
+        if (!user.notifiedMarksUpdates) continue;
+
+        const updatedNotifications = user.notifiedMarksUpdates.filter(
+          (update) => now - update.timestamp <= ONE_DAY
+        );
+
+        if (updatedNotifications.length !== user.notifiedMarksUpdates.length) {
+          await User.findByIdAndUpdate(user._id, {
+            notifiedMarksUpdates: updatedNotifications,
+          });
+        }
       }
+    } catch (error) {
+      logger.error(`Error cleaning up old notifications: ${error.message}`);
     }
   }
 }

@@ -45,7 +45,15 @@ const UserSchema = new mongoose.Schema(
       default: null,
     },
     notifiedMarksUpdates: {
-      type: [String],
+      type: [
+        {
+          id: String,
+          timestamp: Number,
+          courseName: String,
+          type: String,
+          testName: String,
+        },
+      ],
       default: [],
     },
     lastMarksUpdate: {

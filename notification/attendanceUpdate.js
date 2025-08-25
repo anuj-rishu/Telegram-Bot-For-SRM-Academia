@@ -1,48 +1,100 @@
+const config = require("../config/config");
+const Redis = require("ioredis");
+const amqp = require("amqplib");
 const User = require("../model/user");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const AttendanceHistory = require("../model/attendanceHistory");
 const crypto = require("crypto");
+const logger = require("../utils/logger");
 
 class AttendanceNotificationService {
   constructor(bot) {
     this.bot = bot;
-    this.notifiedUpdates = new Map();
     this.processingUsers = new Set();
 
-    this.loadNotifiedUpdatesFromDB();
+    this.redis = new Redis({
+      host: config.REDIS_HOST,
+      port: config.REDIS_PORT,
+      password: config.REDIS_PASSWORD,
+      retryStrategy: (times) => Math.min(times * 50, 2000),
+    });
+
+    this.initializeRabbitMQ();
+
     setTimeout(() => this.migrateNotificationData(), 5000);
 
     setInterval(() => this.checkAttendanceUpdates(), 60 * 1000);
     setInterval(() => this.cleanupOldNotifications(), 6 * 60 * 60 * 1000);
   }
 
-  async loadNotifiedUpdatesFromDB() {
+  async initializeRabbitMQ() {
     try {
-      const users = await User.find({
-        notifiedAttendanceUpdates: { $exists: true, $ne: [] },
+      const connection = await amqp.connect(config.RABBITMQ_URL);
+
+      connection.on("error", (err) => {
+        logger.error(`RabbitMQ connection error: ${err.message}`);
+        setTimeout(() => this.initializeRabbitMQ(), 5000);
       });
-      for (const user of users) {
-        if (
-          user.notifiedAttendanceUpdates &&
-          Array.isArray(user.notifiedAttendanceUpdates)
-        ) {
-          user.notifiedAttendanceUpdates.forEach((update) => {
-            if (update && update.id && update.timestamp) {
-              this.notifiedUpdates.set(update.id, update.timestamp);
+
+      this.channel = await connection.createChannel();
+
+      await this.channel.assertQueue("attendance_updates", {
+        durable: true,
+        messageTtl: 3600000,
+      });
+
+      this.channel.prefetch(10);
+
+      this.channel.consume("attendance_updates", async (msg) => {
+        if (msg !== null) {
+          try {
+            const { telegramId, updates } = JSON.parse(msg.content.toString());
+            await this.sendAttendanceUpdateNotification(telegramId, updates);
+            this.channel.ack(msg);
+          } catch (error) {
+            logger.error(`Error processing notification: ${error.message}`);
+            if (error.code !== "ETIMEDOUT" && error.code !== "ECONNREFUSED") {
+              this.channel.nack(msg, false, true);
+            } else {
+              this.channel.nack(msg, false, false);
             }
-          });
+          }
         }
-      }
-    } catch (error) {}
+      });
+    } catch (error) {
+      logger.error(`Failed to initialize RabbitMQ: ${error.message}`);
+      setTimeout(() => this.initializeRabbitMQ(), 5000);
+    }
   }
 
   async migrateNotificationData() {
     try {
       const users = await User.find({
-        notifiedAttendanceUpdates: { $exists: true },
+        notifiedAttendanceUpdates: { $exists: true, $ne: [] },
       });
+
       for (const user of users) {
+        if (
+          user.notifiedAttendanceUpdates &&
+          Array.isArray(user.notifiedAttendanceUpdates)
+        ) {
+          const pipeline = this.redis.pipeline();
+
+          user.notifiedAttendanceUpdates.forEach((update) => {
+            if (update && update.id && update.timestamp) {
+              pipeline.set(
+                `notification:${update.id}`,
+                update.timestamp,
+                "EX",
+                86400
+              );
+            }
+          });
+
+          await pipeline.exec();
+        }
+
         if (
           user.notifiedAttendanceUpdates.length > 0 &&
           (typeof user.notifiedAttendanceUpdates[0] === "string" ||
@@ -53,7 +105,17 @@ class AttendanceNotificationService {
           });
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Migration error: ${error.message}`);
+    }
+  }
+
+  async isAlreadyNotified(updateId) {
+    return Boolean(await this.redis.exists(`notification:${updateId}`));
+  }
+
+  async markAsNotified(updateId, timestamp = Date.now()) {
+    await this.redis.set(`notification:${updateId}`, timestamp, "EX", 86400);
   }
 
   async checkAttendanceUpdates() {
@@ -62,35 +124,46 @@ class AttendanceNotificationService {
         token: { $exists: true },
       }).lean();
 
-      const BATCH_SIZE = 15;
+      const BATCH_SIZE = 30;
 
       for (let i = 0; i < users.length; i += BATCH_SIZE) {
         const batch = users.slice(i, i + BATCH_SIZE);
 
         await Promise.all(
           batch.map(async (user) => {
-            if (this.processingUsers.has(user.telegramId)) return;
-            this.processingUsers.add(user.telegramId);
+            const lockKey = `attendance_lock:${user.telegramId}`;
+            const lock = await this.redis.set(lockKey, "1", "NX", "EX", 60);
+
+            if (!lock) return;
 
             try {
               await this.checkUserAttendance(user);
             } finally {
-              this.processingUsers.delete(user.telegramId);
+              await this.redis.del(lockKey);
             }
           })
         );
 
         if (i + BATCH_SIZE < users.length) {
-          await new Promise((resolve) => setTimeout(resolve, 200));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Error checking attendance updates: ${error.message}`);
+    }
   }
 
   async checkUserAttendance(user) {
     try {
       const session = sessionManager.getSession(user.telegramId);
       if (!session) return;
+
+      let oldAttendanceData = user.attendance;
+      const cachedData = await this.redis.get(`attendance:${user.telegramId}`);
+
+      if (cachedData) {
+        oldAttendanceData = JSON.parse(cachedData);
+      }
 
       const response = await apiService.makeAuthenticatedRequest(
         "/attendance",
@@ -100,14 +173,18 @@ class AttendanceNotificationService {
       const newAttendanceData = response.data;
       if (!newAttendanceData?.attendance) return;
 
-      const newHash = this.generateAttendanceHash(newAttendanceData.attendance);
+      await this.redis.set(
+        `attendance:${user.telegramId}`,
+        JSON.stringify(newAttendanceData),
+        "EX",
+        600
+      );
 
-      if (user.attendanceHash === newHash) {
-        return;
-      }
+      const newHash = this.generateAttendanceHash(newAttendanceData.attendance);
+      if (user.attendanceHash === newHash) return;
 
       const updatedCourses = this.compareAttendance(
-        user.attendance,
+        oldAttendanceData,
         newAttendanceData
       );
 
@@ -115,17 +192,24 @@ class AttendanceNotificationService {
         const hasRealChanges = this.hasSignificantChanges(updatedCourses);
 
         if (hasRealChanges) {
-          const newUpdates = this.filterAlreadyNotifiedUpdates(
+          const newUpdates = await this.filterAlreadyNotifiedUpdates(
             user.telegramId,
             updatedCourses
           );
 
           if (newUpdates.length > 0) {
-            await this.sendAttendanceUpdateNotification(
-              user.telegramId,
-              newUpdates
+            this.channel.sendToQueue(
+              "attendance_updates",
+              Buffer.from(
+                JSON.stringify({
+                  telegramId: user.telegramId,
+                  updates: newUpdates,
+                })
+              ),
+              { persistent: true }
             );
-            this.markUpdatesAsNotified(user.telegramId, newUpdates);
+
+            await this.markUpdatesAsNotified(user.telegramId, newUpdates);
             await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
           }
         }
@@ -146,7 +230,46 @@ class AttendanceNotificationService {
           lastAttendanceUpdate: new Date(),
         });
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.error(
+        `Error checking attendance for user ${user.telegramId}: ${error.message}`
+      );
+    }
+  }
+
+  async filterAlreadyNotifiedUpdates(telegramId, updates) {
+    const filteredUpdates = [];
+
+    for (const update of updates) {
+      const updateId = this.generateUpdateIdentifier(
+        telegramId,
+        update.new,
+        update.type
+      );
+
+      const isNotified = await this.isAlreadyNotified(updateId);
+      if (!isNotified) {
+        filteredUpdates.push(update);
+      }
+    }
+
+    return filteredUpdates;
+  }
+
+  async markUpdatesAsNotified(telegramId, updates) {
+    const pipeline = this.redis.pipeline();
+    const now = Date.now();
+
+    updates.forEach((update) => {
+      const updateId = this.generateUpdateIdentifier(
+        telegramId,
+        update.new,
+        update.type
+      );
+      pipeline.set(`notification:${updateId}`, now, "EX", 86400);
+    });
+
+    await pipeline.exec();
   }
 
   determineAttendanceStatus(update) {
@@ -209,7 +332,9 @@ class AttendanceNotificationService {
         wasPresent,
         attendancePercentage: parseFloat(course.attendancePercentage),
       });
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Error saving attendance history: ${error.message}`);
+    }
   }
 
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
@@ -217,9 +342,25 @@ class AttendanceNotificationService {
       const user = await User.findOne({ telegramId });
       if (!user) return;
 
-      const notifiedUpdates = user.notifiedAttendanceUpdates || [];
+      // Check if notifiedAttendanceUpdates is an array
+      let notifiedUpdates = [];
+
+      // Ensure we're working with an array of objects with the correct structure
+      if (Array.isArray(user.notifiedAttendanceUpdates)) {
+        // Filter out any string values or invalid objects
+        notifiedUpdates = user.notifiedAttendanceUpdates.filter(
+          (update) =>
+            update &&
+            typeof update === "object" &&
+            update.id &&
+            typeof update.id === "string" &&
+            update.timestamp
+        );
+      }
+
       const now = Date.now();
 
+      // Add new updates
       newUpdates.forEach((update) => {
         const updateId = this.generateUpdateIdentifier(
           telegramId,
@@ -238,39 +379,18 @@ class AttendanceNotificationService {
       const MAX_STORED_UPDATES = 100;
       const updatesToStore = notifiedUpdates.slice(-MAX_STORED_UPDATES);
 
+      // Use $set to ensure proper type handling
       await User.findByIdAndUpdate(user._id, {
-        notifiedAttendanceUpdates: updatesToStore,
+        $set: { notifiedAttendanceUpdates: updatesToStore },
       });
-    } catch (error) {}
+    } catch (error) {
+      logger.error(`Error saving notified updates to DB: ${error.message}`);
+    }
   }
 
   generateUpdateIdentifier(telegramId, course, type) {
     const courseDetails = `${course.courseTitle}-${course.category}-${course.hoursConducted}-${course.hoursAbsent}`;
     return `${telegramId}:${courseDetails}:${type}`;
-  }
-
-  filterAlreadyNotifiedUpdates(telegramId, updates) {
-    return updates.filter((update) => {
-      const updateId = this.generateUpdateIdentifier(
-        telegramId,
-        update.new,
-        update.type
-      );
-      const isAlreadyNotified = this.notifiedUpdates.has(updateId);
-      return !isAlreadyNotified;
-    });
-  }
-
-  markUpdatesAsNotified(telegramId, updates) {
-    const now = Date.now();
-    updates.forEach((update) => {
-      const updateId = this.generateUpdateIdentifier(
-        telegramId,
-        update.new,
-        update.type
-      );
-      this.notifiedUpdates.set(updateId, now);
-    });
   }
 
   compareAttendance(oldData, newData) {
@@ -433,17 +553,40 @@ class AttendanceNotificationService {
         parse_mode: "Markdown",
         disable_notification: false,
       });
-    } catch (error) {}
+    } catch (error) {
+      logger.error(
+        `Error sending notification to ${telegramId}: ${error.message}`
+      );
+      throw error;
+    }
   }
 
-  cleanupOldNotifications() {
-    const ONE_DAY = 24 * 60 * 60 * 1000;
-    const now = Date.now();
+  async cleanupOldNotifications() {
+    try {
+      const users = await User.find({
+        notifiedAttendanceUpdates: { $exists: true, $ne: [] },
+      });
 
-    for (const [updateId, timestamp] of this.notifiedUpdates.entries()) {
-      if (now - timestamp > ONE_DAY) {
-        this.notifiedUpdates.delete(updateId);
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+
+      for (const user of users) {
+        if (!user.notifiedAttendanceUpdates) continue;
+
+        const updatedNotifications = user.notifiedAttendanceUpdates.filter(
+          (update) => now - update.timestamp <= ONE_DAY
+        );
+
+        if (
+          updatedNotifications.length !== user.notifiedAttendanceUpdates.length
+        ) {
+          await User.findByIdAndUpdate(user._id, {
+            notifiedAttendanceUpdates: updatedNotifications,
+          });
+        }
       }
+    } catch (error) {
+      logger.error(`Error cleaning up old notifications: ${error.message}`);
     }
   }
 }

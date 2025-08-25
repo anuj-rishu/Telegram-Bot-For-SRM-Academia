@@ -9,4 +9,8 @@ module.exports = {
   PRIVACY_URL: process.env.PRIVACY_URL,
   MONGODB_URI: process.env.MONGODB_URI,
   TASK_SERVICE_URL: process.env.TASK_SERVICE_URL,
+  REDIS_HOST: process.env.REDIS_HOST,
+  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD,
+  RABBITMQ_URL: process.env.RABBITMQ_URL,
 };
