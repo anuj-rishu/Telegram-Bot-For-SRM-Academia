@@ -37,10 +37,17 @@ A Telegram bot that provides SRM University students with easy access to their a
    ```env
    TELEGRAM_BOT_TOKEN=your_bot_token
    MONGODB_URI=your_mongo_connection_string
-   API_ENDPOINT=your_srm_api_endpoint
+   API_BASE_URL=your_srm_api_endpoint
    PRIVACY_URL=your_privacy_policy_url
    TASK_SERVICE_URL=your_task_service_url
    NOTIFICATION_API_URL=your_notification_service_url
+   LOST_ITEM_API_URL=your_lost_item_api_url
+   VAULTIFY_API_URL=your_vaultify_api_url
+   SEAT_FINDER_API_URL=your_seat_finder_api_url
+   REDIS_HOST=your_redis_host
+   REDIS_PORT=your_redis_port
+   REDIS_PASSWORD=your_redis_password
+   RABBITMQ_URL=your_rabbitmq_url
    ```
 
 ## 🐳 Docker Deployment
@@ -182,6 +189,7 @@ The bot is structured with the following components:
 - **Middleware**: Implement auth checks and other processing.
 - **Scenes**: Handle multi-step dialogues like login, task creation, and document upload.
 - **Notifications**: Real-time updates for marks, attendance, classes, and tasks.
+- **Queue**: Background job processing using RQBit and Redis.
 
 ## 📚 Tech Stack
 
@@ -195,6 +203,8 @@ The bot is structured with the following components:
 - **Socket.io** - Real-time communications.
 - **PDF Generation** - For attendance and timetable reports.
 - **Groq** - AI service integration for attendance prediction.
+- **RQBit** - Distributed task queue for background jobs.
+- **Redis** - In-memory data store for caching and queue management.
 
 ## ⏲️ Notification System
 
@@ -220,6 +230,8 @@ The bot includes several notification services:
 Ensure you have the following installed:
 - Node.js (v16 or later)
 - MongoDB
+- Redis
+- RQBit
 - Telegram Bot API
 - Supporting microservices for tasks, notifications, and document storage
 
@@ -235,6 +247,7 @@ This project follows a modular structure:
 - `utils/` - Helper functions.
 - `notification/` - Notification services.
 - `config/` - Configuration settings.
+- `queue/` - Background job processing (RQBit/Redis integration).
 
 ## 🧑‍💻 Author
 
