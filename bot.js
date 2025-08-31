@@ -24,7 +24,7 @@ const taskController = require("./controllers/taskController");
 const documentController = require("./controllers/documentController");
 const timetablePdfController = require("./controllers/timetablePdfController");
 const attendancePdfController = require("./controllers/attendancePdfController");
-const calendarController = require('./controllers/calendarController');
+const calendarController = require("./controllers/calendarController");
 
 //notification service
 const NotificationService = require("./notification/timetable");
@@ -40,8 +40,6 @@ const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 
 //services
 const CustomMessageService = require("./services/customMessageService");
-
-
 
 global.botInstance = bot;
 
@@ -88,15 +86,17 @@ new NotificationService(bot);
 scheduleAttendancePdf(bot);
 // new SeatFinderService(bot);
 
-
 //pdf services
 bot.command(
   "timetablepdf",
   requireLogin,
   timetablePdfController.handleTimetablePdf
 );
-bot.command("attendancepdf", requireLogin, attendancePdfController.handleAttendancePdf);
-
+bot.command(
+  "attendancepdf",
+  requireLogin,
+  attendancePdfController.handleAttendancePdf
+);
 
 //Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));

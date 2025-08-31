@@ -1,4 +1,5 @@
 require("dotenv").config();
+const config = require("./config/config"); 
 const bot = require("./bot");
 const connectDB = require("./config/db");
 const sessionManager = require("./utils/sessionManager");
@@ -6,7 +7,14 @@ const logger = require("./utils/logger");
 
 const express = require("express");
 const app = express();
-const PORT = process.env.PORT || 9000;
+const PORT = config.PORT || 9000;
+
+app.use(express.json());
+
+app.post("/webhook", (req, res) => {
+  bot.handleUpdate(req.body);
+  res.sendStatus(200);
+});
 
 app.get("/", (req, res) => {
   res.send("Bot is running!");
@@ -44,12 +52,19 @@ async function startBot() {
     global.botInstance = bot;
     await sessionManager.initializeSessions();
     logger.info("Sessions initialized");
-    sessionManager.startPeriodicValidation(240); // 4 hours
+    sessionManager.startPeriodicValidation(240);
 
-    bot.launch().catch((err) => {
-      logger.error(`Bot launch error: ${err.message}`);
-      process.exit(1);
-    });
+    const webhookUrl = config.WEBHOOK_URL;
+    if (webhookUrl) {
+      await bot.telegram.setWebhook(webhookUrl);
+      logger.info(`Webhook set to ${webhookUrl}`);
+    } else {
+      logger.warn("WEBHOOK_URL not set, falling back to polling");
+      bot.launch().catch((err) => {
+        logger.error(`Bot launch error: ${err.message}`);
+        process.exit(1);
+      });
+    }
 
     logger.info("Bot launched successfully");
 

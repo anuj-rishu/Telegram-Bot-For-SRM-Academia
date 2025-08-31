@@ -1,6 +1,8 @@
 module.exports = {
-  API_BASE_URL: process.env.API_BASE_URL,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+  API_BASE_URL: process.env.API_BASE_URL,
+  WEBHOOK_URL:process.env.WEBHOOK_URL,
+  PORT:process.env.PORT,
   NOTIFICATION_API_URL: process.env.NOTIFICATION_API_URL,
   LOST_ITEM_API_URL: process.env.LOST_ITEM_API_URL,
   VAULTIFY_API_URL: process.env.VAULTIFY_API_URL,
@@ -9,4 +11,5 @@ module.exports = {
   PRIVACY_URL: process.env.PRIVACY_URL,
   MONGODB_URI: process.env.MONGODB_URI,
   TASK_SERVICE_URL: process.env.TASK_SERVICE_URL,
+
 };
