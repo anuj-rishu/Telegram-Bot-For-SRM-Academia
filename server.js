@@ -57,13 +57,10 @@ async function startBot() {
     const webhookUrl = config.WEBHOOK_URL;
     if (webhookUrl) {
       await bot.telegram.setWebhook(webhookUrl);
-      logger.info(`Webhook set to ${webhookUrl}`);
+      logger.info(`Webhook set to ${webhookUrl} successfully`);
     } else {
-      logger.warn("WEBHOOK_URL not set, falling back to polling");
-      bot.launch().catch((err) => {
-        logger.error(`Bot launch error: ${err.message}`);
-        process.exit(1);
-      });
+      logger.error("WEBHOOK_URL not set, cannot start bot without webhook");
+      process.exit(1);
     }
 
     logger.info("Bot launched successfully");
