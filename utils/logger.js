@@ -1,16 +1,16 @@
-const winston = require("winston");
+const pino = require("pino");
 
-const logger = winston.createLogger({
+const logger = pino({
   level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    winston.format.colorize(),
-    winston.format.printf(
-      ({ timestamp, level, message }) => `[${timestamp}] ${level}: ${message}`
-    )
-  ),
-  transports: [new winston.transports.Console()],
-  exitOnError: false,
+  timestamp: pino.stdTimeFunctions.isoTime,
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "yyyy-mm-dd HH:MM:ss",
+      ignore: "pid,hostname",
+    },
+  },
 });
 
 process.on("uncaughtException", (err) =>
