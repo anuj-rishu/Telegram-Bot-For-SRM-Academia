@@ -78,15 +78,13 @@ bot.start((ctx) => {
   );
 });
 
-// Function to initialize services asynchronously
 async function initializeServices() {
   logger.info("Initializing services...");
   new MarksNotificationService(bot);
   new AttendanceNotificationService(bot);
-  await taskController.initTaskService(bot);  // Await if async
+  await taskController.initTaskService(bot);
   new NotificationService(bot);
   scheduleAttendancePdf(bot);
-  // new SeatFinderService(bot);
   logger.info("Services initialized");
 }
 
@@ -202,7 +200,6 @@ bot.catch((err, ctx) => {
   ctx.reply("An error occurred. Please try again later.");
 });
 
-// Initialize services after a short delay to avoid blocking bot launch
 setTimeout(initializeServices, 1000);
 
 module.exports = bot;

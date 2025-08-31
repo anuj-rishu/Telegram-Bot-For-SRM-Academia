@@ -1,5 +1,5 @@
 require("dotenv").config();
-const config = require("./config/config"); 
+const config = require("./config/config");
 const bot = require("./bot");
 const connectDB = require("./config/db");
 const sessionManager = require("./utils/sessionManager");
@@ -10,14 +10,11 @@ const app = express();
 const PORT = config.PORT || 9000;
 
 app.use(express.json());
+app.use(express.static("./TelebotWebsite"));
 
 app.post("/webhook", (req, res) => {
   bot.handleUpdate(req.body);
   res.sendStatus(200);
-});
-
-app.get("/", (req, res) => {
-  res.send("Bot is running!");
 });
 
 app.listen(PORT, () => {
@@ -67,7 +64,7 @@ async function startBot() {
 
     process.once("SIGINT", () => bot.stop("SIGINT"));
     process.once("SIGTERM", () => bot.stop("SIGTERM"));
-  } catch (err) {
+ } catch (err) {
     logger.error(`Failed to start bot: ${err.message}`);
     process.exit(1);
   }
