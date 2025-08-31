@@ -12,11 +12,6 @@ const PORT = config.PORT || 9000;
 app.use(express.json());
 app.use(express.static("./TelebotWebsite"));
 
-app.post("/webhook", (req, res) => {
-  bot.handleUpdate(req.body);
-  res.sendStatus(200);
-});
-
 app.listen(PORT, () => {
   logger.info(`HTTP server listening on port ${PORT}`);
 });
@@ -51,23 +46,16 @@ async function startBot() {
     logger.info("Sessions initialized");
     sessionManager.startPeriodicValidation(240);
 
-    const webhookUrl = config.WEBHOOK_URL;
-    if (webhookUrl) {
-      await bot.telegram.setWebhook(webhookUrl);
-      logger.info(`Webhook set to ${webhookUrl} successfully`);
-    } else {
-      logger.error("WEBHOOK_URL not set, cannot start bot without webhook");
-      process.exit(1);
-    }
-
-    logger.info("Bot launched successfully");
+    // Remove webhook setup and use polling instead
+    await bot.launch();
+    logger.info("Bot launched successfully with polling");
 
     process.once("SIGINT", () => bot.stop("SIGINT"));
     process.once("SIGTERM", () => bot.stop("SIGTERM"));
- } catch (err) {
+  } catch (err) {
     logger.error(`Failed to start bot: ${err.message}`);
     process.exit(1);
-  }
+     }
 }
 
 startBot();
