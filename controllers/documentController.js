@@ -1,10 +1,11 @@
 const axios = require("axios");
-const FormData = require("form-data");
 const User = require("../model/user");
 const { Markup } = require("telegraf");
 const config = require("../config/config");
 const logger = require("../utils/logger");
 const { createLoader } = require("../utils/loader");
+const sessionManager = require("../utils/sessionManager");
+const { requireAuth } = require("../utils/authUtils");
 
 const MIME_TO_EXT = {
   "application/pdf": ".pdf",
@@ -69,20 +70,27 @@ const format = {
 };
 
 async function handleUploadDocument(ctx) {
-  const user = await User.findOne({ telegramId: ctx.from.id });
-  if (!user?.token)
-    return ctx.reply("You need to login first. Use /login command.");
+  const userId = ctx.from.id;
+  const session = sessionManager.getSession(userId);
+
+  if (!requireAuth(ctx, session)) {
+    return;
+  }
+  
   return ctx.scene.enter("upload_document");
 }
 
 async function handleGetDocuments(ctx) {
-  const user = await User.findOne({ telegramId: ctx.from.id });
-  if (!user?.token)
-    return ctx.reply("You need to login first. Use /login command.");
+  const userId = ctx.from.id;
+  const session = sessionManager.getSession(userId);
+
+  if (!requireAuth(ctx, session)) {
+    return;
+  }
 
   try {
     const loader = await createLoader(ctx, "Fetching your documents...");
-    const response = await apiRequest("/documents/", user.token);
+    const response = await apiRequest("/documents/", session.token);
     await loader.clear();
 
     const documents = response.data;
@@ -110,9 +118,7 @@ async function handleGetDocuments(ctx) {
       await ctx.replyWithMarkdown(message, Markup.inlineKeyboard(buttons));
     }
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
-      logger.error("Error fetching documents:", error.response?.data || error.message);
-    }
+    logger.error("Error fetching documents:", error.response?.data || error.message);
     await ctx.reply(
       "❌ Sorry, there was an error retrieving your documents. Please try again later."
     );
@@ -120,13 +126,16 @@ async function handleGetDocuments(ctx) {
 }
 
 async function handleSendDocument(ctx, documentId) {
-  const user = await User.findOne({ telegramId: ctx.from.id });
-  if (!user?.token)
-    return ctx.reply("You need to login first. Use /login command.");
+  const userId = ctx.from.id;
+  const session = sessionManager.getSession(userId);
+
+  if (!requireAuth(ctx, session)) {
+    return;
+  }
 
   try {
     const loader = await createLoader(ctx, "Preparing document for sending...");
-    const response = await apiRequest("/documents/", user.token);
+    const response = await apiRequest("/documents/", session.token);
     const document = response.data.find((doc) => doc.id === documentId);
 
     if (!document) {
@@ -157,9 +166,7 @@ async function handleSendDocument(ctx, documentId) {
       { caption, parse_mode: "Markdown" }
     );
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
-      logger.error("Error sending document:", error.response?.data || error.message);
-    }
+    logger.error("Error sending document:", error.response?.data || error.message);
     if (ctx.callbackQuery)
       ctx.answerCbQuery("Error sending document", { show_alert: true });
     await ctx.reply(

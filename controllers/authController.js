@@ -1,13 +1,13 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const logger = require("../utils/logger");
+const { requireAuth } = require("../utils/authUtils");
 
 async function handleLogout(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
-  if (!session) {
-    await ctx.reply("You are not logged in.");
+  if (!requireAuth(ctx, session)) {
     return;
   }
 
@@ -39,11 +39,9 @@ async function handleLogout(ctx) {
       );
     }
   } catch (sessionError) {
-    if (process.env.NODE_ENV === "production") {
-      logger.error(
-        `Session deletion failed for user ${userId}: ${sessionError.message}`
-      );
-    }
+    logger.error(
+      `Session deletion failed for user ${userId}: ${sessionError.message}`
+    );
     await ctx.telegram.editMessageText(
       ctx.chat.id,
       processingMsg.message_id,

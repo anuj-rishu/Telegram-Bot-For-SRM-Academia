@@ -1,4 +1,5 @@
 const User = require("../model/user");
+const Marks = require("../model/marks");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const crypto = require("crypto");
@@ -20,16 +21,16 @@ class MarksNotificationService {
 
   async loadNotifiedUpdatesFromDB() {
     try {
-      const users = await User.find({
-        notifiedMarksUpdates: { $exists: true },
+      const marksRecords = await Marks.find({
+        notifiedMarksUpdates: { $exists: true, $ne: [] },
       });
 
-      for (const user of users) {
+      for (const record of marksRecords) {
         if (
-          user.notifiedMarksUpdates &&
-          Array.isArray(user.notifiedMarksUpdates)
+          record.notifiedMarksUpdates &&
+          Array.isArray(record.notifiedMarksUpdates)
         ) {
-          user.notifiedMarksUpdates.forEach((update) => {
+          record.notifiedMarksUpdates.forEach((update) => {
             if (update && update.id && update.timestamp) {
               this.notifiedUpdates.set(update.id, update.timestamp);
             }
@@ -46,8 +47,7 @@ class MarksNotificationService {
     try {
       const users = await User.find({
         token: { $exists: true },
-        marks: { $exists: true },
-      });
+      }).lean();
 
       let index = 0;
       const total = users.length;
@@ -96,9 +96,17 @@ class MarksNotificationService {
 
       const newMarksHash = this.generateMarksHash(newMarksData);
       
-      if (newMarksHash === user.marksHash) return;
+      // Get the marks record for this user
+      let marksRecord = await Marks.findOne({ telegramId: user.telegramId });
+      
+      // If no marks record exists, create one
+      if (!marksRecord) {
+        marksRecord = new Marks({ telegramId: user.telegramId });
+      }
+      
+      if (newMarksHash === marksRecord.marksHash) return;
 
-      const updatedCourses = this.compareMarks(user.marks, newMarksData);
+      const updatedCourses = this.compareMarks(marksRecord.marks, newMarksData);
 
       if (updatedCourses.length > 0) {
         const newUpdates = this.filterAlreadyNotifiedUpdates(
@@ -112,11 +120,11 @@ class MarksNotificationService {
           await this.saveNotifiedUpdatesToDB(user.telegramId, newUpdates);
         }
 
-        await User.findByIdAndUpdate(user._id, {
-          marks: newMarksData,
-          marksHash: newMarksHash,
-          lastMarksUpdate: new Date(),
-        });
+        // Update the marks record instead of user
+        marksRecord.marks = newMarksData;
+        marksRecord.marksHash = newMarksHash;
+        marksRecord.lastMarksUpdate = new Date();
+        await marksRecord.save();
       }
     } catch (error) {}
   }
@@ -148,10 +156,13 @@ class MarksNotificationService {
 
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
     try {
-      const user = await User.findOne({ telegramId });
-      if (!user) return;
+      // Find or create marks record
+      let marksRecord = await Marks.findOne({ telegramId });
+      if (!marksRecord) {
+        marksRecord = new Marks({ telegramId });
+      }
 
-      const notifiedUpdates = user.notifiedMarksUpdates || [];
+      const notifiedUpdates = marksRecord.notifiedMarksUpdates || [];
       const now = Date.now();
 
       newUpdates.forEach((update) => {
@@ -168,9 +179,8 @@ class MarksNotificationService {
       const MAX_STORED_UPDATES = 100;
       const updatesToStore = notifiedUpdates.slice(-MAX_STORED_UPDATES);
 
-      await User.findByIdAndUpdate(user._id, {
-        notifiedMarksUpdates: updatesToStore,
-      });
+      marksRecord.notifiedMarksUpdates = updatesToStore;
+      await marksRecord.save();
     } catch (error) {}
   }
 

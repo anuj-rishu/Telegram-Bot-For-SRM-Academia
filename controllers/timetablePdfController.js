@@ -1,11 +1,17 @@
 const axios = require("axios");
 const { createLoader } = require("../utils/loader");
 const { API_BASE_URL } = require("../config/config");
+const logger = require("../utils/logger");
+const { requireAuth } = require("../utils/authUtils");
 
 async function handleTimetablePdf(ctx) {
   const sessionManager = require("../utils/sessionManager");
-  const session = sessionManager.getSession(ctx.from.id);
-  if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
+  const userId = ctx.from.id;
+  const session = sessionManager.getSession(userId);
+  
+  if (!requireAuth(ctx, session)) {
+    return;
+  }
 
   const csrfToken = session.csrfToken || "";
 
@@ -27,7 +33,7 @@ async function handleTimetablePdf(ctx) {
     });
     await loader.clear();
   } catch (e) {
-    console.error("PDF fetch/send error:", e);
+    logger.error("PDF fetch/send error:", e.message || e);
     await loader.clear();
     ctx.reply(
       `❌ Error fetching PDF: ${

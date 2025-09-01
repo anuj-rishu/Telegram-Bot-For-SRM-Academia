@@ -1,6 +1,7 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const logger = require("../utils/logger");
+const { requireAuth } = require("../utils/authUtils");
 
 const calendarCache = new Map();
 
@@ -8,8 +9,8 @@ async function handleCalendar(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
-  if (!session || !session.token) {
-    return ctx.reply("You need to login first. Use /login command.");
+  if (!requireAuth(ctx, session)) {
+    return;
   }
 
   try {
@@ -35,9 +36,7 @@ async function handleCalendar(ctx) {
 
     await showCalendarOverview(ctx, calendarData, loadingMessage.message_id);
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
-      logger.error("Calendar fetch error:", error.message || error);
-    }
+    logger.error("Calendar fetch error:", error.message || error);
     ctx.reply(
       `Error fetching calendar: ${
         error.response?.data?.error || error.message || "Unknown error"
@@ -273,7 +272,6 @@ async function showUpcomingEvents(ctx, calendarData) {
 
 async function showDayOrders(ctx, calendarData) {
   let message = "📊 *Day Order Information*\n\n";
-
 
   const dayOrderCount = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let totalWorkingDays = 0;

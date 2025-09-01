@@ -1,13 +1,14 @@
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const { createLoader } = require("../utils/loader");
+const { requireAuth } = require("../utils/authUtils");
+const logger = require("../utils/logger");
 
 async function handleUserInfo(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
-  if (!session || !session.token) {
-    await ctx.reply("You need to login first. Use /login command.");
+  if (!requireAuth(ctx, session)) {
     return;
   }
 
@@ -48,6 +49,7 @@ async function handleUserInfo(ctx) {
     );
   } catch (error) {
     loader.stop();
+    logger.error("User info fetch error:", error.message || error);
     await ctx.telegram.editMessageText(
       ctx.chat.id,
       loader.messageId,
