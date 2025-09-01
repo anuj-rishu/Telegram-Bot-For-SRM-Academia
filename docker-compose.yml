@@ -3,8 +3,8 @@ services:
     build: .
     container_name: srm-academia-bot
     restart: always
-    expose:
-      - "9000"   
+    ports:
+      - "9000:9000"
     volumes:
       - .:/app
       - /app/node_modules
@@ -12,6 +12,12 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:9000"]
       interval: 30s
@@ -23,9 +29,13 @@ services:
     container_name: srm-academia-nginx
     restart: always
     ports:
-      - "80:80"   
-      - "443:443"   
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     depends_on:
       - telegram-bot
