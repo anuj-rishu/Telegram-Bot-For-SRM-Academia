@@ -2,11 +2,10 @@ const { Telegraf, Scenes, session } = require("telegraf");
 const config = require("./config/config");
 const logger = require("./utils/logger");
 
-// Initialization of  bot
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
-//middlewares
 const { requireLogin } = require("./middlewares/ authMiddleware");
+
 
 //controllers
 const authController = require("./controllers/authController");
@@ -15,10 +14,6 @@ const marksController = require("./controllers/marksController");
 const coursesController = require("./controllers/coursesController");
 const userController = require("./controllers/userController");
 const timetableController = require("./controllers/timetableController");
-const {
-  handleCalendar,
-  handleCalendarCallback,
-} = require("./controllers/calendarController");
 const lostItemController = require("./controllers/lostItemController");
 const taskController = require("./controllers/taskController");
 const documentController = require("./controllers/documentController");
@@ -26,7 +21,7 @@ const timetablePdfController = require("./controllers/timetablePdfController");
 const attendancePdfController = require("./controllers/attendancePdfController");
 const calendarController = require("./controllers/calendarController");
 
-//notification service
+//services
 const NotificationService = require("./notification/timetable");
 const MarksNotificationService = require("./notification/marksUpdate");
 const AttendanceNotificationService = require("./notification/attendanceUpdate");
@@ -38,7 +33,6 @@ const lostItemScene = require("./scenes/lostItemScene");
 const taskScene = require("./scenes/taskScene");
 const uploadDocumentScene = require("./scenes/uploadDocumentScene");
 
-//services
 const CustomMessageService = require("./services/customMessageService");
 
 global.botInstance = bot;
@@ -52,7 +46,6 @@ bot.telegram.sendMessage = async (chatId, text, options = {}) => {
   }
 };
 
-//scenes initialization
 const stage = new Scenes.Stage([
   loginScene,
   taskScene,
@@ -60,11 +53,9 @@ const stage = new Scenes.Stage([
   uploadDocumentScene,
 ]);
 
-// Middleware initialization
 bot.use(session());
 bot.use(stage.middleware());
 
-//bot starts
 bot.start((ctx) => {
   ctx.replyWithMarkdown(
     "Welcome to the SRM Academia Bot! 🎓\n\n" +
@@ -78,15 +69,12 @@ bot.start((ctx) => {
   );
 });
 
-//  Notification services
 new MarksNotificationService(bot);
 new AttendanceNotificationService(bot);
 taskController.initTaskService(bot);
 new NotificationService(bot);
 scheduleAttendancePdf(bot);
-// new SeatFinderService(bot);
 
-//pdf services
 bot.command(
   "timetablepdf",
   requireLogin,
@@ -98,15 +86,12 @@ bot.command(
   attendancePdfController.handleAttendancePdf
 );
 
-//Authentication service
 bot.command("login", (ctx) => ctx.scene.enter("login"));
 bot.command("logout", requireLogin, authController.handleLogout);
 
-// Custom message service
 const messageService = new CustomMessageService(bot);
 bot.messageService = messageService;
 
-//Academic commands
 bot.command("attendance", requireLogin, attendanceController.handleAttendance);
 bot.action(
   /^attendance_.*$/,
@@ -134,7 +119,7 @@ bot.command("tomorrowclass", timetableController.handleTomorrowClass);
 bot.command("dayafterclass", timetableController.handleDayAfterClass);
 bot.command("calendar", requireLogin, calendarController.handleCalendar);
 bot.action(/^cal_.*$/, requireLogin, calendarController.handleCalendarCallback);
-//lost and found command
+
 bot.command(
   "reportlost",
   requireLogin,
@@ -157,7 +142,6 @@ bot.command("finditem", async (ctx) => {
   }
 });
 
-//task command
 bot.command("addtask", requireLogin, (ctx) => ctx.scene.enter("task"));
 bot.command("tasks", requireLogin, taskController.handleTasksList);
 bot.command("complete", requireLogin, taskController.handleCompleteTask);
@@ -172,7 +156,6 @@ bot.action(
   taskController.handleTaskCallbacks
 );
 
-//vault service commands
 bot.command("uploaddoc", requireLogin, documentController.handleUploadDocument);
 bot.command("mydocs", requireLogin, documentController.handleGetDocuments);
 bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
@@ -180,7 +163,6 @@ bot.action(/^send_doc:(.+)$/, requireLogin, (ctx) => {
   return documentController.handleSendDocument(ctx, documentId);
 });
 
-// Help command
 bot.help((ctx) => {
   ctx.reply(
     "SRM ACADEMIA BOT Commands:\n\n" +
