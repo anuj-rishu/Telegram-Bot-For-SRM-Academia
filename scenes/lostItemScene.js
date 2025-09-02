@@ -29,9 +29,7 @@ const lostItemScene = new Scenes.WizardScene(
       }
 
       const userName = user.userInfo?.name || user.name || user.username;
-      const userContact = user.userInfo?.mobile
-        ? user.userInfo.mobile
-        : user.email || user.regNumber || `@${ctx.from.username || "telegram_user"}`;
+     const userContact = user.mobile || user.email || user.regNumber || `@${ctx.from.username || "telegram_user"}`;
 
       ctx.wizard.state.lostItem.finder_name = userName;
       ctx.wizard.state.lostItem.finder_contact = userContact;
