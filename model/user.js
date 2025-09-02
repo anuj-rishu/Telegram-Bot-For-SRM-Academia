@@ -23,10 +23,6 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    userInfo: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-    },
   },
   {
     timestamps: true,
