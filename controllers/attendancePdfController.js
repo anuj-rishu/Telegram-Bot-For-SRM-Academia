@@ -5,12 +5,15 @@ const sessionManager = require("../utils/sessionManager");
 const AttendanceHistory = require("../model/attendanceHistory");
 const { createLoader } = require("../utils/loader");
 const User = require("../model/user");
+const { requireAuth } = require("../utils/authUtils");
 
 async function handleAttendancePdf(ctx) {
   const userId = ctx.from.id;
   const session = sessionManager.getSession(userId);
 
-  if (!session?.token) return ctx.reply("🔒 Please login first using /login.");
+  if (!requireAuth(ctx, session)) {
+    return;
+  }
 
   const loader = await createLoader(ctx, "Generating your attendance report...");
   let attendanceArr = [];

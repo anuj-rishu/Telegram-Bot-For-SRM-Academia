@@ -1,38 +1,34 @@
-const winston = require('winston');
+const pino = require("pino");
 
-const customFormat = winston.format.combine(
-  winston.format.timestamp({
-    format: 'YYYY-MM-DD HH:mm:ss'
-  }),
-  winston.format.colorize(),
-  winston.format.printf(({ timestamp, level, message }) => {
-    return `[${timestamp}] ${level}: ${message}`;
-  })
-);
-
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: customFormat,
-  transports: [
-    new winston.transports.Console()
-  ],
-  exitOnError: false
+const logger = pino({
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:standard",
+      ignore: "pid,hostname",
+    },
+  },
+  level: process.env.LOG_LEVEL || "info",
 });
 
-logger.api = function(method, endpoint, status, responseTime) {
-  this.info(`API ${method.toUpperCase()} ${endpoint} - Status: ${status} - ${responseTime}ms`);
+logger.api = function (method, endpoint, status, responseTime) {
+  this.info(
+    `API ${method.toUpperCase()} ${endpoint} - Status: ${status} - ${responseTime}ms`
+  );
 };
 
-logger.userActivity = function(userId, activity) {
+logger.userActivity = function (userId, activity) {
   this.info(`User ${userId}: ${activity}`);
 };
 
-process.on('uncaughtException', (error) => {
+process.on("uncaughtException", (error) => {
   logger.error(`Uncaught Exception: ${error.message}`);
   logger.error(error.stack);
+  process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on("unhandledRejection", (reason, promise) => {
   logger.error(`Unhandled Rejection at Promise. Reason: ${reason}`);
 });
 

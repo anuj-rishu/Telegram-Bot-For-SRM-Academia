@@ -1,4 +1,5 @@
 const User = require("../model/user");
+const Attendance = require("../model/attendance");
 const apiService = require("../services/apiService");
 const sessionManager = require("../utils/sessionManager");
 const AttendanceHistory = require("../model/attendanceHistory");
@@ -19,15 +20,15 @@ class AttendanceNotificationService {
 
   async loadNotifiedUpdatesFromDB() {
     try {
-      const users = await User.find({
+      const attendances = await Attendance.find({
         notifiedAttendanceUpdates: { $exists: true, $ne: [] },
       });
-      for (const user of users) {
+      for (const attendance of attendances) {
         if (
-          user.notifiedAttendanceUpdates &&
-          Array.isArray(user.notifiedAttendanceUpdates)
+          attendance.notifiedAttendanceUpdates &&
+          Array.isArray(attendance.notifiedAttendanceUpdates)
         ) {
-          user.notifiedAttendanceUpdates.forEach((update) => {
+          attendance.notifiedAttendanceUpdates.forEach((update) => {
             if (update && update.id && update.timestamp) {
               this.notifiedUpdates.set(update.id, update.timestamp);
             }
@@ -39,16 +40,16 @@ class AttendanceNotificationService {
 
   async migrateNotificationData() {
     try {
-      const users = await User.find({
+      const attendances = await Attendance.find({
         notifiedAttendanceUpdates: { $exists: true },
       });
-      for (const user of users) {
+      for (const attendance of attendances) {
         if (
-          user.notifiedAttendanceUpdates.length > 0 &&
-          (typeof user.notifiedAttendanceUpdates[0] === "string" ||
-            !user.notifiedAttendanceUpdates[0].id)
+          attendance.notifiedAttendanceUpdates.length > 0 &&
+          (typeof attendance.notifiedAttendanceUpdates[0] === "string" ||
+            !attendance.notifiedAttendanceUpdates[0].id)
         ) {
-          await User.findByIdAndUpdate(user._id, {
+          await Attendance.findByIdAndUpdate(attendance._id, {
             notifiedAttendanceUpdates: [],
           });
         }
@@ -102,12 +103,20 @@ class AttendanceNotificationService {
 
       const newHash = this.generateAttendanceHash(newAttendanceData.attendance);
 
-      if (user.attendanceHash === newHash) {
+      let attendanceRecord = await Attendance.findOne({
+        telegramId: user.telegramId,
+      });
+
+      if (!attendanceRecord) {
+        attendanceRecord = new Attendance({ telegramId: user.telegramId });
+      }
+
+      if (attendanceRecord.attendanceHash === newHash) {
         return;
       }
 
       const updatedCourses = this.compareAttendance(
-        user.attendance,
+        attendanceRecord.attendance,
         newAttendanceData
       );
 
@@ -140,11 +149,10 @@ class AttendanceNotificationService {
           );
         }
 
-        await User.findByIdAndUpdate(user._id, {
-          attendance: newAttendanceData,
-          attendanceHash: newHash,
-          lastAttendanceUpdate: new Date(),
-        });
+        attendanceRecord.attendance = newAttendanceData;
+        attendanceRecord.attendanceHash = newHash;
+        attendanceRecord.lastAttendanceUpdate = new Date();
+        await attendanceRecord.save();
       }
     } catch (error) {}
   }
@@ -214,10 +222,12 @@ class AttendanceNotificationService {
 
   async saveNotifiedUpdatesToDB(telegramId, newUpdates) {
     try {
-      const user = await User.findOne({ telegramId });
-      if (!user) return;
+      let attendanceRecord = await Attendance.findOne({ telegramId });
+      if (!attendanceRecord) {
+        attendanceRecord = new Attendance({ telegramId });
+      }
 
-      const notifiedUpdates = user.notifiedAttendanceUpdates || [];
+      const notifiedUpdates = attendanceRecord.notifiedAttendanceUpdates || [];
       const now = Date.now();
 
       newUpdates.forEach((update) => {
@@ -238,9 +248,8 @@ class AttendanceNotificationService {
       const MAX_STORED_UPDATES = 100;
       const updatesToStore = notifiedUpdates.slice(-MAX_STORED_UPDATES);
 
-      await User.findByIdAndUpdate(user._id, {
-        notifiedAttendanceUpdates: updatesToStore,
-      });
+      attendanceRecord.notifiedAttendanceUpdates = updatesToStore;
+      await attendanceRecord.save();
     } catch (error) {}
   }
 

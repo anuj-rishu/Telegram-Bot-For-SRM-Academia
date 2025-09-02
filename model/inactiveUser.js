@@ -6,7 +6,6 @@ const InactiveUserSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     username: {
       type: String,
@@ -75,9 +74,9 @@ const InactiveUserSchema = new mongoose.Schema(
     },
     reason: {
       type: String,
-      enum: ['token_expired', 'session_deleted', 'no_token'],
-      default: 'no_token'
-    }
+      enum: ["token_expired", "session_deleted", "no_token"],
+      default: "no_token",
+    },
   },
   {
     timestamps: true,
